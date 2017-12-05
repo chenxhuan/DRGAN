@@ -1,4 +1,6 @@
 data/*
+model/*
+src/log/*
 .setting
 .project
 .pydevproject
