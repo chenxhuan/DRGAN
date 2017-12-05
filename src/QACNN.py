@@ -32,9 +32,9 @@ class QACNN():
         self.model_type="base"
         self.num_filters_total=self.num_filters * len(self.filter_sizes)
 
-        self.input_x_1 = tf.placeholder(tf.int32, [None, sequence_len], name="input_x_1")
-        self.input_x_2 = tf.placeholder(tf.int32, [None, sequence_len], name="input_x_2")
-        self.input_x_3 = tf.placeholder(tf.int32, [None, sequence_len], name="input_x_3")
+        self.input_x_1 = tf.placeholder(tf.int32, [batch_size, sequence_len], name="input_x_1")
+        self.input_x_2 = tf.placeholder(tf.int32, [batch_size, sequence_len], name="input_x_2")
+        self.input_x_3 = tf.placeholder(tf.int32, [batch_size, sequence_len], name="input_x_3")
         
         self.label=tf.placeholder(tf.float32, [batch_size], name="input_x_3")
         

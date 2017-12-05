@@ -1,7 +1,7 @@
 #coding=utf-8
 import tensorflow as tf
 import numpy as np
-from QACNN import QACNN
+from QACNN_bak import QACNN
 
 class Discriminator(QACNN):
     def __init__(self, sequence_len, batch_size, vocab_size, embedding_size, filter_sizes, num_filters, dropout=1.0, l2_reg=0.0, learning_rate=1e-2, params=None,embeddings=None,loss='pair',trainable=True):

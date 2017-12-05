@@ -194,35 +194,76 @@ def split_train_test3(inFile):
     cPickle.dump(asker_map,open(path+'asker_map','w'))
 
 def generate_uniform_pair(dataset):
-    samples = []
+    embedding_samples, profile_samples = [],[]
     asker_map = cPickle.load(open(path+'asker_map','r'))
     print len(asker_map)
+    gender_dic,age_dic,region_dic,doc_title_dic,users_dic,docs_dic = cPickle.load(open(path+'features.dic','r'))
+    dics_tuple = [len(gender_dic),len(age_dic),len(region_dic),len(doc_title_dic)]
     with codecs.open(path+dataset,'r') as train:
         for row in train.readlines():
             key, value = row.strip().split(':VS:')
+            query = key.split('\t')
             response = value.split('\t')
             if response[-1] != '1.0':
                 continue
-            q = key.split('\t')[4].split('_')
+            q = query[4].split('_')
             pos = response[4].split('_')
             values = asker_map[key]
             values.remove(value)
             neg_index = random.randint(0,len(values)-1)
-            neg = values[neg_index].split('\t')[4].split('_')
-            samples.append([map(int,item) for item in [q,pos,neg]])
-    return np.array(samples)  #  must np.array or can't use [:,0] for list
+            neg_resp = values[neg_index].split('\t')
+            neg = neg_resp[4].split('_')
+
+            q_profile = [0.0]*sum(dics_tuple[:3])
+            pos_profile = [0.0]*dics_tuple[3]
+            neg_profile = [0.0]*dics_tuple[3]
+            q_profile[int(query[1])] = 1.0
+            q_profile[int(query[2])+dics_tuple[0]] = 1.0
+            q_profile[int(query[3])+ sum(dics_tuple[:2])] = 1.0
+            
+            pos_profile[int(response[1])] = 1.0
+            pos_profile.append(float(response[2]))
+            pos_profile.append(float(response[3]))
+            
+            neg_profile[int(neg_resp[1])] = 1.0
+            neg_profile.append(float(neg_resp[2]))
+            neg_profile.append(float(neg_resp[3]))
+
+            profile = [q_profile + pos_profile, q_profile + neg_profile]
+                
+            embedding_samples.append([map(int,item) for item in [q,pos,neg]])
+            profile_samples.append(profile)
+    return np.array(embedding_samples),np.array(profile_samples)  #  must np.array or can't use [:,0] for list
 
 def generate_test_samples():
-    samples, asker_label = [], []
+    eb_samples, pro_samples, asker_label = [], [], []
+    gender_dic,age_dic,region_dic,doc_title_dic,users_dic,docs_dic = cPickle.load(open(path+'features.dic','r'))
+    dics_tuple = [len(gender_dic),len(age_dic),len(region_dic),len(doc_title_dic)]
     with codecs.open(path+'test_feature','r') as test:
         for row in test.readlines():
             key, value = row.strip().split(':VS:')
-            q = map(int, key.split('\t')[4].split('_'))
-            pos = map(int, value.split('\t')[4].split('_'))
-            samples.append([q,pos,pos])
-            label = value.split('\t')[-1]
+            query = key.split('\t')
+            response = value.split('\t')
+            q = map(int, query[4].split('_'))
+            pos = map(int, response[4].split('_'))
+            eb_samples.append([q,pos,pos])
+            label = response[-1]
             asker_label.append((key,label))
-    return np.array(samples), asker_label
+            
+            q_profile = [0.0]*sum(dics_tuple[:3])
+            pos_profile = [0.0]*dics_tuple[3]
+            q_profile[int(query[1])] = 1.0
+            q_profile[int(query[2])+ dics_tuple[0]] = 1.0
+            q_profile[int(query[3])+ sum(dics_tuple[:2])] = 1.0
+
+            pos_profile[int(response[1])] = 1.0
+            pos_profile.append(float(response[2]))
+            pos_profile.append(float(response[3]))
+
+            profile = [q_profile + pos_profile]*2
+            pro_samples.append(profile)
+
+    return np.array(eb_samples), np.array(pro_samples), asker_label
 
 
 if __name__ == "__main__":

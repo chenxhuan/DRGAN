@@ -4,15 +4,15 @@ import numpy as np
 from QACNN import QACNN
 
 class Discriminator(QACNN):
-    def __init__(self, sequence_len, batch_size, vocab_size, embedding_size, filter_sizes, num_filters, dropout=1.0, l2_reg=0.0, learning_rate=1e-2, params=None,embeddings=None,loss='log',trainable=True, visible_size, hidden_size):
+    def __init__(self, sequence_len, batch_size, vocab_size, embedding_size, filter_sizes, num_filters, visible_size, hidden_size, dropout=1.0, l2_reg=0.0, learning_rate=1e-2, params=None,embeddings=None,loss='svm',trainable=True):
         QACNN.__init__(self,sequence_len,batch_size,vocab_size,embedding_size,filter_sizes,num_filters,dropout,l2_reg,params,learning_rate,embeddings,loss,trainable)
         self.model_type = 'Dis'
         self.visible_size = visible_size
         self.hidden_size = hidden_size 
         self.d_params = []
-        self.d_param.extend(self.updated_params)
-        self.pos_prof = tf.placeholder(tf.int32, [None, self.visible_size], name="pos_profile")
-        self.neg_prof = tf.placeholder(tf.int32, [None, self.visible_size], name="neg_profile")
+        self.d_params.extend(self.updated_params)
+        self.pos_prof = tf.placeholder(tf.float32, [batch_size, self.visible_size], name="pos_profile")
+        self.neg_prof = tf.placeholder(tf.float32, [batch_size, self.visible_size], name="neg_profile")
         with tf.name_scope('profile_params'):
             if params == None:
                 self.W1 = tf.get_variable('weight_1', [self.visible_size, self.hidden_size],
@@ -27,13 +27,14 @@ class Discriminator(QACNN):
                 self.W1 = tf.Variable(params[1][0])
                 self.W2 = tf.Variable(params[1][1])
                 self.b = tf.Variable(params[1][2])
-            d_params.extend([self.W1,self.W2,self.b,self.Wc1,self.Wc2,self.bc])
-
+            self.d_params.extend([self.W1,self.W2,self.b,self.Wc1,self.Wc2,self.bc])
+        
         pos_prof_score = tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(self.pos_prof, self.W1, self.b)), self.W2)
         neg_prof_score = tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(self.neg_prof, self.W1, self.b)), self.W2)        
-        
-        self.pos_score = tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b([pos_prof_score,self.score12],self.Wc1,self.bc)),self.Wc2)
-        self.neg_score = tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b([neg_prof_score,self.score13],self.Wc1,self.bc)),self.Wc2)
+        pos_tmp = tf.reshape([tf.reshape(pos_prof_score, [-1]),self.score12], [batch_size,2]) 
+        neg_tmp = tf.reshape([tf.reshape(neg_prof_score, [-1]),self.score13], [batch_size,2]) 
+        self.pos_score = tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(pos_tmp,self.Wc1,self.bc)),self.Wc2)
+        self.neg_score = tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(neg_tmp,self.Wc1,self.bc)),self.Wc2)
         self.l2_loss = tf.constant(0.0)
         for para in self.d_params:
             self.l2_loss+= tf.nn.l2_loss(para)
@@ -45,9 +46,11 @@ class Discriminator(QACNN):
                 self.reward = 2*(tf.sigmoid(0.05 - (self.score12 - self.score13))-0.5)
             elif loss == 'log':
                 self.losses = tf.log(tf.sigmoid(self.pos_score - self.neg_score))
-                self.loss = -tf.reduce.sum
-            self.positive = tf.reduce_mean(self.score12)
-            self.negative = tf.reduce_mean(self.score13)
+                self.loss = -tf.reduce_mean(self.losses) + self.l2_reg*self.l2_loss
+                self.reward = tf.reshape(tf.log(tf.sigmoid(self.neg_score - self.pos_score)),[-1])
+
+            self.positive = tf.reduce_mean(self.pos_score)
+            self.negative = tf.reduce_mean(self.neg_score)
             self.correct = tf.equal(0.0, self.losses)
             self.accuracy = tf.reduce_mean(tf.cast(self.correct,'float'),name='accuracy')
 
