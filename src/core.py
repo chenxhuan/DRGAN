@@ -14,9 +14,9 @@ sys.setdefaultencoding('utf-8')
 path = '../model/'
 
 
-class QACNN():
+class core():
     
-    def __init__(self, sequence_len, batch_size,vocab_size, embedding_size,filter_sizes, num_filters, dropout=1.0,l2_reg=0.0,params=None,learning_rate=1e-2,embeddings=None,loss="pair",trainable=True):
+    def __init__(self, sequence_len, batch_size,vocab_size, embedding_size,filter_sizes, num_filters, visible_size, hidden_size, dropout=1.0,l2_reg=0.0,params=None,learning_rate=1e-2,embeddings=None,loss="pair",trainable=True):
         self.sequence_len=sequence_len
         self.learning_rate=learning_rate
         self.params=params
@@ -25,6 +25,9 @@ class QACNN():
         self.l2_reg=l2_reg
         self.dropout = dropout
         self.embeddings=embeddings
+        self.visible_size = visible_size
+        self.hidden_size = hidden_size
+
 
 
         self.embedding_size=embedding_size
@@ -32,10 +35,12 @@ class QACNN():
         self.model_type="base"
         self.num_filters_total=self.num_filters * len(self.filter_sizes)
 
-        self.input_x_1 = tf.placeholder(tf.int32, [batch_size, sequence_len], name="input_x_1")
-        self.input_x_2 = tf.placeholder(tf.int32, [batch_size, sequence_len], name="input_x_2")
-        self.input_x_3 = tf.placeholder(tf.int32, [batch_size, sequence_len], name="input_x_3")
-        
+        self.input_x_1 = tf.placeholder(tf.int32, [None, sequence_len], name="input_x_1")
+        self.input_x_2 = tf.placeholder(tf.int32, [None, sequence_len], name="input_x_2")
+        self.input_x_3 = tf.placeholder(tf.int32, [None, sequence_len], name="input_x_3")
+        self.pos_prof = tf.placeholder(tf.float32, [None, self.visible_size], name="pos_profile")
+        self.neg_prof = tf.placeholder(tf.float32, [None, self.visible_size], name="neg_profile")
+ 
         self.label=tf.placeholder(tf.float32, [batch_size], name="input_x_3")
         
         # Embedding layer
@@ -70,11 +75,32 @@ class QACNN():
                 self.updated_params.append(W)
                 self.updated_params.append(b)
 
-        
+        with tf.name_scope('profile_params'):
+            if params == None:
+                self.W1 = tf.Variable(tf.truncated_normal([self.visible_size, self.hidden_size], stddev=0.1), name="weight_1")
+                self.Wc1 = tf.Variable(tf.truncated_normal([2,2], stddev=0.1), name="weight_combined1")
+                self.W2 = tf.Variable(tf.truncated_normal([self.hidden_size,1],stddev=0.1), name="weight_2")
+                self.Wc2 = tf.Variable(tf.truncated_normal([2,1],stddev=0.1), name="weight_combined2")
+                self.b = tf.Variable(tf.constant(0.0, shape=[self.hidden_size]), name="b")
+                self.bc = tf.Variable(tf.constant(0.0, shape=[2]), name="bc")
 
-        #self.l2_loss = tf.constant(0.0)
-        #for para in self.updated_params:
-        #    self.l2_loss+= tf.nn.l2_loss(para)
+                #self.W1 = tf.Variable(name='weight_1', [self.visible_size, self.hidden_size],initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.1))
+                #self.Wc1 = tf.get_variable('weight_combined1',[2,2],initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.1))
+                #self.W2 = tf.get_variable('weight_2', [self.hidden_size, 1],initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.1))
+                #self.Wc2 = tf.get_variable('weight_combined2',[2,1],initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.1))
+                #self.b = tf.get_variable('b', [self.hidden_size], initializer=tf.constant_initializer(0.0))
+                #self.bc = tf.get_variable('bc', [2], initializer=tf.constant_initializer(0.0))
+            else:
+                self.W1 = tf.Variable(params[1][0])
+                self.W2 = tf.Variable(params[1][1])
+                self.b = tf.Variable(params[1][2])
+            self.updated_params.extend([self.W1,self.W2,self.b,self.Wc1,self.Wc2,self.bc])
+
+
+
+        self.l2_loss = tf.constant(0.0)
+        for para in self.updated_params:
+            self.l2_loss+= tf.nn.l2_loss(para)
         
 
         with tf.name_scope("output"):
@@ -85,8 +111,10 @@ class QACNN():
             self.score12 = self.cosine(q,pos)
             self.score13 = self.cosine(q,neg)
 
-            self.positive= tf.reduce_mean(self.score12)
-            self.negative= tf.reduce_mean( self.score13)
+            self.pos_prof_score = tf.reshape(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(self.pos_prof, self.W1, self.b)), self.W2),[-1])
+            self.neg_prof_score = tf.reshape(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(self.neg_prof, self.W1, self.b)), self.W2),[-1])
+
+
 
     def getRepresentation(self,sentence):
         embedded_chars_1 = tf.nn.embedding_lookup(self.Embedding_W, sentence)

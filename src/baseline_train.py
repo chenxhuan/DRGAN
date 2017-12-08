@@ -21,7 +21,7 @@ tf.flags.DEFINE_float("l2_reg", 0.001, "L2 regularizaion lambda (default: 0.0)")
 tf.flags.DEFINE_float("learning_rate", 0.1, "learning_rate (default: 0.1)")
 # Training parameters
 tf.flags.DEFINE_integer("batch_size", 80, "Batch Size (default: 64)")
-tf.flags.DEFINE_integer("num_epochs", 100, "Number of training epochs (default: 200)")
+tf.flags.DEFINE_integer("num_epochs", 10, "Number of training epochs (default: 200)")
 tf.flags.DEFINE_integer("evaluate_every", 500, "Evaluate model on dev set after this many steps (default: 100)")
 tf.flags.DEFINE_integer("checkpoint_every", 500, "Save model after this many steps (default: 100)")
 tf.flags.DEFINE_integer("pools_size", 100, "The sampled set of a positive ample, which is bigger than 500")
@@ -121,8 +121,7 @@ def process():
                             dis.input_x_3:eb_batch[:,2],
                             dis.pos_prof:pro_batch[:,0],
                             dis.neg_prof:pro_batch[:,1]}
-                        _,step, current_loss, accuracy = sess.run([dis.updates,dis.global_step,dis.loss,dis.accuracy],feed_dict)
-
+                        _,step, current_loss, accuracy,positive = sess.run([dis.updates,dis.global_step,dis.loss,dis.accuracy,dis.pos_score],feed_dict)
                     print(("%s: basic Dis step %d, loss %f with acc %f,total step: %d "%(timestamp(), step, current_loss,accuracy,FLAGS.num_epochs*num_batches)))
                 evaluation(sess,dis,log)
 if __name__ == '__main__':
