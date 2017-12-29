@@ -7,11 +7,6 @@ class Discriminator(core):
     def __init__(self, sequence_len, batch_size, vocab_size, embedding_size, filter_sizes, num_filters, visible_size, hidden_size, dropout=1.0, l2_reg=0.0, learning_rate=1e-2, params=None,embeddings=None,loss='svm',trainable=True):
         core.__init__(self,sequence_len,batch_size,vocab_size,embedding_size,filter_sizes,num_filters, visible_size, hidden_size, dropout,l2_reg,params,learning_rate,embeddings,loss,trainable)
         self.model_type = 'Dis'
-        pos_tmp = tf.reshape([self.pos_prof_score,self.score12], [-1,2]) 
-        neg_tmp = tf.reshape([self.neg_prof_score,self.score13], [-1,2]) 
-        self.pos_score = tf.reshape(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(pos_tmp,self.Wc1,self.bc)),self.Wc2), [-1])
-        self.neg_score = tf.reshape(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(neg_tmp,self.Wc1,self.bc)),self.Wc2), [-1])
-
         with tf.name_scope('output'):
             if loss == 'svm':
                 self.losses = tf.maximum(0.0, 0.05 - (self.pos_score - self.neg_score))

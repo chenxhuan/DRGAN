@@ -143,7 +143,7 @@ def format_str(text, vocab):
     return '_'.join(formatSeg)
                          
 def split_train_test3(inFile):
-    asker_map, asker_right = {}, {}
+    asker_map, asker_right, responses = {}, {},[]
     vocab = cPickle.load(open(path+'vocab','r'))
     with codecs.open(path+inFile,'r') as raw_feature:
         lines = raw_feature.readlines() 
@@ -157,7 +157,8 @@ def split_train_test3(inFile):
             value.append(format_str(token[7]+'unknown '+token[10],vocab))
             value.append(token[11])
             skey = '\t'.join(key) 
-            svalue = '\t'.join(value)   
+            svalue = '\t'.join(value)
+            responses.append(svalue)
             if skey not in asker_map:
                 asker_map[skey] = [svalue]
                 if token[11] == '1.0':
@@ -171,6 +172,8 @@ def split_train_test3(inFile):
     asker_size = len(asker_map)
     train_out = codecs.open(path+'train_feature','w')
     test_out = codecs.open(path+'test_feature','w')
+    train_cf = codecs.open(path+'train_cf','w')
+    test_cf = codecs.open(path+'test_cf','w')
     maxsize, minsize = 0, asker_size
     for index,kv in enumerate(asker_map.items()):
         key, values = kv
@@ -179,23 +182,32 @@ def split_train_test3(inFile):
         if index < asker_size*0.8:   # train set
             for value in values:
                 train_out.write(key+':VS:'+value+'\n')
+                cf_value = value.split('\t')
+                train_cf.write(key.split('\t')[0]+'\t'+cf_value[0]+'\t'+cf_value[-1]+'\n')
         else:                       # test set
             for value in values:   
                 test_out.write(key+':VS:'+value+'\n')
+                cf_value = value.split('\t')
+                test_cf.write(key.split('\t')[0]+'\t'+cf_value[0]+'\t'+cf_value[-1]+'\n') 
     print asker_size, maxsize, minsize, max(word_len),min(word_len),np.average(word_len)
     train_out.close()
     test_out.close()
+    train_cf.close()
+    test_cf.close()
     tmp = asker_right.values()
     count = 0
     for i in tmp:
         if i > 1:
             count += 1
-    print count,max(tmp),np.average(tmp)
+    responses = list(set(responses))
+    print count,max(tmp),np.average(tmp),len(responses)
     cPickle.dump(asker_map,open(path+'asker_map','w'))
+    cPickle.dump(responses,open(path+'responses','w'))
 
 def generate_uniform_pair(dataset):
     embedding_samples, profile_samples = [],[]
     asker_map = cPickle.load(open(path+'asker_map','r'))
+    responses = cPickle.load(open(path+'responses','r'))
     print len(asker_map)
     gender_dic,age_dic,region_dic,doc_title_dic,users_dic,docs_dic = cPickle.load(open(path+'features.dic','r'))
     dics_tuple = [len(gender_dic),len(age_dic),len(region_dic),len(doc_title_dic)]
@@ -208,10 +220,11 @@ def generate_uniform_pair(dataset):
                 continue
             q = query[4].split('_')
             pos = response[4].split('_')
-            values = asker_map[key]
-            values.remove(value)
-            neg_index = random.randint(0,len(values)-1)
-            neg_resp = values[neg_index].split('\t')
+            #values = asker_map[key]
+            #values.remove(value)
+            #neg_index = random.randint(0,len(values)-1)
+            neg_index = random.randint(0,len(responses)-1)
+            neg_resp = responses[neg_index].split('\t')
             neg = neg_resp[4].split('_')
 
             q_profile = [0.0]*sum(dics_tuple[:3])
@@ -233,7 +246,9 @@ def generate_uniform_pair(dataset):
                 
             embedding_samples.append([map(int,item) for item in [q,pos,neg]])
             profile_samples.append(profile)
-    return np.array(embedding_samples),np.array(profile_samples)  #  must np.array or can't use [:,0] for list
+    res = np.array(embedding_samples),np.array(profile_samples) 
+    cPickle.dump(res,open(path+'train_samples','w'))
+    return res  #  must np.array or can't use [:,0] for list
 
 def generate_test_samples():
     eb_samples, pro_samples, asker_label = [], [], []
@@ -262,13 +277,15 @@ def generate_test_samples():
 
             profile = [q_profile + pos_profile]*2
             pro_samples.append(profile)
-
-    return np.array(eb_samples), np.array(pro_samples), asker_label
+    res = np.array(eb_samples), np.array(pro_samples), asker_label
+    cPickle.dump(res,open(path+'test_samples','w'))
+    return res
 
 
 if __name__ == "__main__":
     #extract_data_with_best_answer1('ask120.csv')
     #feature_process2('ask120.csv','raw_feature')
-    split_train_test3('raw_feature')
-
-
+    #split_train_test3('raw_feature')
+    #generate_uniform_pair('train_feature')
+    #generate_test_samples()
+    print 'beginning...'
