@@ -23,7 +23,7 @@ tf.flags.DEFINE_float("l2_reg", 0.001, "L2 regularizaion lambda (default: 0.0)")
 tf.flags.DEFINE_float("learning_rate", 0.1, "learning_rate (default: 0.1)")
 # Training parameters
 tf.flags.DEFINE_integer("batch_size", 80, "Batch Size (default: 64)")
-tf.flags.DEFINE_integer("num_epochs", 100, "Number of training epochs (default: 200)")
+tf.flags.DEFINE_integer("num_epochs", 1, "Number of training epochs (default: 200)")
 tf.flags.DEFINE_integer("evaluate_every", 500, "Evaluate model on dev set after this many steps (default: 100)")
 tf.flags.DEFINE_integer("checkpoint_every", 500, "Save model after this many steps (default: 100)")
 tf.flags.DEFINE_integer("pools_size", 100, "The sampled set of a positive ample, which is bigger than 500")
@@ -48,12 +48,13 @@ def generate_dns_pair(sess,model, eb_samples, pro_samples):
         	model.input_x_1:[row[0]]*batch_size,
                 model.input_x_2:[row[1]]*batch_size,
                 model.input_x_3:eb_sample_pools[:,2],
-                model.pos_prof:[pro_samples[_index][0]]*batch_size,
-                model.neg_prof:pro_sample_pools[:,1]}
+                model.prof_1:[pro_samples[_index][0]]*batch_size,
+                model.prof_2:[pro_samples[_index][1]]*batch_size,
+                model.prof_3:list(pro_sample_pools[:,2])}
         predicted = sess.run(model.neg_score, feed_dict)
 	neg_index = np.argmax(predicted)
         eb_tmp.append([row[0],row[1],eb_samples[neg_index][2]])
-        pro_tmp.append([pro_samples[_index][0], pro_samples[neg_index][1]])
+        pro_tmp.append([pro_samples[_index][0], pro_samples[_index][1], pro_samples[neg_index][2]])
     return np.array(eb_tmp), np.array(pro_tmp)
 
  
@@ -75,10 +76,11 @@ def process():
                 #samples = generate_uniform_pair('test_feature')
                 #eb_samples, pro_samples = generate_uniform_pair('train_feature')
                 eb_samples, pro_samples = cPickle.load(open(path+'train_samples','r'))
-                profile_dim = len(pro_samples[0][-1])
+                query_prof_dim = len(pro_samples[0][0])
+                response_prof_dim = len(pro_samples[0][-1])
                 batch_size = FLAGS.batch_size
                 num_batches = int(math.ceil(len(eb_samples)/batch_size))
-                print np.shape(eb_samples),np.shape(pro_samples), profile_dim
+                print np.shape(eb_samples),np.shape(pro_samples), query_prof_dim, response_prof_dim
                 dis = Discriminator.Discriminator(
                     FLAGS.max_sequence_len,
                     FLAGS.batch_size,
@@ -86,8 +88,8 @@ def process():
                     FLAGS.embedding_dim,
                     list(map(int, FLAGS.filter_sizes.split(","))),
                     FLAGS.num_filters,
-                    profile_dim,
-                    profile_dim,
+                    query_prof_dim,
+                    response_prof_dim,
                     FLAGS.dropout,
                     FLAGS.l2_reg,
                     FLAGS.learning_rate,
@@ -107,8 +109,9 @@ def process():
                             dis.input_x_1:eb_batch[:,0],
                             dis.input_x_2:eb_batch[:,1],
                             dis.input_x_3:eb_batch[:,2],
-                            dis.pos_prof:pro_batch[:,0],
-                            dis.neg_prof:pro_batch[:,1]}
+                            dis.prof_1:list(pro_batch[:,0]),
+                            dis.prof_2:list(pro_batch[:,1]),
+                            dis.prof_3:list(pro_batch[:,2])}
                         _,step, current_loss, accuracy,positive = sess.run([dis.updates,dis.global_step,dis.loss,dis.accuracy,dis.pos_score],feed_dict)
                     line = ("%s: basic Dis step %d, loss %f with acc %f,total step: %d "%(timestamp(), step, current_loss,accuracy,FLAGS.num_epochs*num_batches))
                     print line

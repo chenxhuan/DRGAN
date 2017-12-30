@@ -51,8 +51,9 @@ def evaluation(sess,model,log,batch_size, save_flag=False):
             model.input_x_1:eb_batch[:,0],
             model.input_x_2:eb_batch[:,1],
             model.input_x_3:eb_batch[:,2],
-            model.pos_prof:pro_batch[:,0],
-            model.neg_prof:pro_batch[:,1]}
+            model.prof_1:list(pro_batch[:,0]),
+            model.prof_2:list(pro_batch[:,1]),
+            model.prof_3:list(pro_batch[:,2])}
         batch_scores.extend(sess.run(model.pos_score, feed_dict))
     print len(batch_scores)
     for index, s in enumerate(batch_scores):

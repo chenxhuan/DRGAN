@@ -55,12 +55,13 @@ def gan_samples(eb_samples,pro_samples,sess,gen):
             gen.input_x_1:[row[0]]*batch_size,
             gen.input_x_2:[row[1]]*batch_size,
             gen.input_x_3:eb_sample_pools[:,2],
-            gen.pos_prof:[pro_samples[_index][0]]*batch_size,
-            gen.neg_prof:pro_sample_pools[:,1]}
+            gen.prof_1:[pro_samples[_index][0]]*batch_size,
+            gen.prof_2:[pro_samples[_index][1]]*batch_size,
+            gen.prof_3:list(pro_sample_pools[:,2])}
         predicted = sess.run(gen.gan_score,feed_dict)
         neg_index = np.argmax(predicted)
         d_eb_samples.append([row[0],row[1],eb_samples[neg_index][2]])
-        d_pro_samples.append([pro_samples[_index][0], pro_samples[neg_index][1]])
+        d_pro_samples.append([pro_samples[_index][0], pro_samples[_index][1], pro_samples[neg_index][2]])
     return np.array(d_eb_samples), np.array(d_pro_samples)
 
 
@@ -82,10 +83,11 @@ def process():
                 #samples = generate_uniform_pair('test_feature')
                 #eb_samples, pro_samples = generate_uniform_pair('train_feature')
                 eb_samples, pro_samples = cPickle.load(open(path+'train_samples','r'))
-                profile_dim = len(pro_samples[0][-1])
+                query_prof_dim = len(pro_samples[0][0])
+                response_prof_dim = len(pro_samples[0][-1])
                 batch_size = FLAGS.batch_size
                 num_batches = int(math.ceil(len(eb_samples)/batch_size))
-                print np.shape(eb_samples),np.shape(pro_samples), profile_dim
+                print np.shape(eb_samples),np.shape(pro_samples), query_prof_dim,response_prof_dim
                 dis = Discriminator.Discriminator(
                     FLAGS.max_sequence_len,
                     FLAGS.batch_size,
@@ -93,8 +95,8 @@ def process():
                     FLAGS.embedding_dim,
                     list(map(int, FLAGS.filter_sizes.split(","))),
                     FLAGS.num_filters,
-                    profile_dim,
-                    profile_dim,
+                    query_prof_dim,
+                    response_prof_dim,
                     FLAGS.dropout,
                     FLAGS.l2_reg,
                     FLAGS.learning_rate,
@@ -109,8 +111,8 @@ def process():
                     FLAGS.embedding_dim,
                     list(map(int, FLAGS.filter_sizes.split(","))),
                     FLAGS.num_filters,
-                    profile_dim,
-                    profile_dim,
+                    query_prof_dim,
+                    response_prof_dim,
                     FLAGS.dropout,
                     FLAGS.l2_reg,
                     FLAGS.learning_rate,
@@ -135,8 +137,9 @@ def process():
                                 gen.input_x_1:[row[0]]*batch_size,
                                 gen.input_x_2:[row[1]]*batch_size,
                                 gen.input_x_3:eb_sample_pools[:,2],
-                                gen.pos_prof:[pro_samples[_index][0]]*batch_size,
-                                gen.neg_prof:pro_sample_pools[:,1]}
+                                gen.prof_1:[pro_samples[_index][0]]*batch_size,
+                                gen.prof_2:[pro_samples[_index][1]]*batch_size,
+                                gen.prof_3:list(pro_sample_pools[:,2])}
                             predicted = sess.run(gen.gan_score, feed_dict)
                             exp_rating = np.exp(np.array(predicted))
                             prob = exp_rating / np.sum(exp_rating)
@@ -145,15 +148,17 @@ def process():
                                 dis.input_x_1:[row[0]]*FLAGS.gan_k,
                                 dis.input_x_2:[row[1]]*FLAGS.gan_k,
                                 dis.input_x_3:eb_sample_pools[neg_index][:,2],
-                                dis.pos_prof:[pro_samples[_index][0]]*FLAGS.gan_k,
-                                dis.neg_prof:pro_sample_pools[neg_index][:,1]}
+                                dis.prof_1:[pro_samples[_index][0]]*FLAGS.gan_k,
+                                dis.prof_2:[pro_samples[_index][1]]*FLAGS.gan_k,
+                                dis.prof_3:list(pro_sample_pools[neg_index][:,2])}
                             reward = sess.run(dis.reward,feed_dict)
                             feed_dict  = {
                                 gen.input_x_1:eb_sample_pools[:,0],
                                 gen.input_x_2:eb_sample_pools[:,1],
                                 gen.input_x_3:eb_sample_pools[:,2],
-                                gen.pos_prof:pro_sample_pools[:,0],
-                                gen.neg_prof:pro_sample_pools[:,1],
+                                gen.prof_1:list(pro_sample_pools[:,0]),
+                                gen.prof_2:list(pro_sample_pools[:,1]),
+                                gen.prof_3:list(pro_sample_pools[:,2]),
                                 gen.neg_index:neg_index,
                                 gen.reward    :reward}
                             _, step,current_loss,gan_score = sess.run(
@@ -173,8 +178,9 @@ def process():
                                 dis.input_x_1:eb_batch[:,0],
                                 dis.input_x_2:eb_batch[:,1],
                                 dis.input_x_3:eb_batch[:,2],
-                                dis.pos_prof:pro_batch[:,0],
-                                dis.neg_prof:pro_batch[:,1]}
+                                dis.prof_1:list(pro_batch[:,0]),
+                                dis.prof_2:list(pro_batch[:,1]),
+                                dis.prof_3:list(pro_batch[:,2])}
                             _,step, current_loss, accuracy = sess.run([dis.updates,dis.global_step,dis.loss,dis.accuracy],feed_dict)
 
                         line = ("%s: Dis step %d %d, loss %f with acc %f,total step: %d "%(timestamp(), step, i,current_loss,accuracy,FLAGS.num_epochs*FLAGS.d_epochs_num*num_batches))

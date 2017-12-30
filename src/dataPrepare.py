@@ -235,17 +235,15 @@ def generate_uniform_pair(dataset):
             q_profile[int(query[3])+ sum(dics_tuple[:2])] = 1.0
             
             pos_profile[int(response[1])] = 1.0
-            pos_profile.append(float(response[2]))
-            pos_profile.append(float(response[3]))
+            pos_profile.append(response[2])
+            pos_profile.append(response[3])
             
             neg_profile[int(neg_resp[1])] = 1.0
-            neg_profile.append(float(neg_resp[2]))
-            neg_profile.append(float(neg_resp[3]))
+            neg_profile.append(neg_resp[2])
+            neg_profile.append(neg_resp[3])
 
-            profile = [q_profile + pos_profile, q_profile + neg_profile]
-                
             embedding_samples.append([map(int,item) for item in [q,pos,neg]])
-            profile_samples.append(profile)
+            profile_samples.append([map(float, item) for item in [q_profile, pos_profile, neg_profile]])
     res = np.array(embedding_samples),np.array(profile_samples) 
     cPickle.dump(res,open(path+'train_samples','w'))
     return res  #  must np.array or can't use [:,0] for list
@@ -275,7 +273,7 @@ def generate_test_samples():
             pos_profile.append(float(response[2]))
             pos_profile.append(float(response[3]))
 
-            profile = [q_profile + pos_profile]*2
+            profile = [q_profile, pos_profile,pos_profile]
             pro_samples.append(profile)
     res = np.array(eb_samples), np.array(pro_samples), asker_label
     cPickle.dump(res,open(path+'test_samples','w'))
@@ -286,6 +284,6 @@ if __name__ == "__main__":
     #extract_data_with_best_answer1('ask120.csv')
     #feature_process2('ask120.csv','raw_feature')
     #split_train_test3('raw_feature')
-    #generate_uniform_pair('train_feature')
+    generate_uniform_pair('train_feature')
     #generate_test_samples()
     print 'beginning...'

@@ -16,7 +16,7 @@ path = '../model/'
 
 class core():
     
-    def __init__(self, sequence_len, batch_size,vocab_size, embedding_size,filter_sizes, num_filters, visible_size, hidden_size, dropout=1.0,l2_reg=0.0,params=None,learning_rate=1e-2,embeddings=None,loss="pair",trainable=True):
+    def __init__(self, sequence_len, batch_size,vocab_size, embedding_size,filter_sizes, num_filters, query_size, response_size, dropout=1.0,l2_reg=0.0,params=None,learning_rate=1e-2,embeddings=None,loss="pair",trainable=True):
         self.sequence_len=sequence_len
         self.learning_rate=learning_rate
         self.params=params
@@ -25,9 +25,9 @@ class core():
         self.l2_reg=l2_reg
         self.dropout = dropout
         self.embeddings=embeddings
-        self.visible_size = visible_size
-        self.hidden_size = hidden_size
-
+        self.query_size = query_size
+        self.response_size = response_size
+        self.neuro_size = self.query_size + self.response_size
 
 
         self.embedding_size=embedding_size
@@ -38,10 +38,10 @@ class core():
         self.input_x_1 = tf.placeholder(tf.int32, [None, sequence_len], name="input_x_1")
         self.input_x_2 = tf.placeholder(tf.int32, [None, sequence_len], name="input_x_2")
         self.input_x_3 = tf.placeholder(tf.int32, [None, sequence_len], name="input_x_3")
-        self.pos_prof = tf.placeholder(tf.float32, [None, self.visible_size], name="pos_profile")
-        self.neg_prof = tf.placeholder(tf.float32, [None, self.visible_size], name="neg_profile")
+        self.prof_1 = tf.placeholder(tf.float32, [None, self.query_size], name="query_profile")
+        self.prof_2 = tf.placeholder(tf.float32, [None, self.response_size], name="response_pos_profile")
+        self.prof_3 = tf.placeholder(tf.float32, [None, self.response_size], name="response_neg_profile")
  
-        self.label=tf.placeholder(tf.float32, [batch_size], name="input_x_3")
         
         # Embedding layer
         self.updated_params=[]
@@ -77,11 +77,11 @@ class core():
 
         with tf.name_scope('profile_params'):
             if params == None or len(params) < 3:
-                self.W1 = tf.Variable(tf.truncated_normal([self.visible_size, self.hidden_size], stddev=0.1), name="weight_1")
+                self.W1 = tf.Variable(tf.truncated_normal([self.neuro_size, self.neuro_size], stddev=0.1), name="weight_1")
                 self.Wc1 = tf.Variable(tf.truncated_normal([2,2], stddev=0.1), name="weight_combined1")
-                self.W2 = tf.Variable(tf.truncated_normal([self.hidden_size,1],stddev=0.1), name="weight_2")
+                self.W2 = tf.Variable(tf.truncated_normal([self.neuro_size,1],stddev=0.1), name="weight_2")
                 self.Wc2 = tf.Variable(tf.truncated_normal([2,1],stddev=0.1), name="weight_combined2")
-                self.b = tf.Variable(tf.constant(0.0, shape=[self.hidden_size]), name="b")
+                self.b = tf.Variable(tf.constant(0.0, shape=[self.neuro_size]), name="b")
                 self.bc = tf.Variable(tf.constant(0.0, shape=[2]), name="bc")
                 #self.lamda = tf.Variable(tf.constant(0.1, shape=[1]), name="lamda_weight")
 
@@ -116,8 +116,8 @@ class core():
             self.score12 = self.cosine(q,pos)
             self.score13 = self.cosine(q,neg)
 
-            self.pos_prof_score = tf.reshape(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(self.pos_prof, self.W1, self.b)), self.W2),[-1])
-            self.neg_prof_score = tf.reshape(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(self.neg_prof, self.W1, self.b)), self.W2),[-1])
+            self.pos_prof_score = tf.reshape(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(tf.concat([self.prof_1,self.prof_2],1), self.W1, self.b)), self.W2),[-1])
+            self.neg_prof_score = tf.reshape(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(tf.concat([self.prof_1,self.prof_3],1), self.W1, self.b)), self.W2),[-1])
             self.combined_score = self.score12 + self.pos_prof_score
           
             pos_tmp = tf.reshape([self.pos_prof_score,self.score12], [-1,2])
