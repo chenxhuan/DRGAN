@@ -4,14 +4,15 @@ import numpy as np
 from core import core
 
 class Generator(core):
-    def __init__(self, sequence_len, batch_size, vocab_size, embedding_size, filter_sizes, num_filters, visible_size, hidden_size, dropout=1.0, l2_reg=0.0, learning_rate=1e-2, params=None,embeddings=None,loss='svm',trainable=True):
-        core.__init__(self,sequence_len,batch_size,vocab_size,embedding_size,filter_sizes,num_filters, visible_size, hidden_size, dropout,l2_reg,params,learning_rate,embeddings,loss,trainable)
+    def __init__(self, sequence_len, batch_size, vocab_size, embedding_size, filter_sizes, num_filters, visible_size, hidden_size, dropout=1.0, l2_reg=0.0, learning_rate=1e-2, params=None,embeddings=None,loss='svm',trainable=True,score_type='nn_output'):
+        core.__init__(self,sequence_len,batch_size,vocab_size,embedding_size,filter_sizes,num_filters, visible_size, hidden_size, dropout,l2_reg,params,learning_rate,embeddings,loss,trainable,score_type)
 
         self.model_type = "Gen"
         self.reward  = tf.placeholder(tf.float32, shape=[None], name='reward')
         self.neg_index = tf.placeholder(tf.int32, shape=[None], name='neg_index')
 
-        self.gan_score = -tf.abs(self.neg_score - self.pos_score)
+        #self.gan_score = -tf.abs(self.neg_score - self.pos_score)
+        self.gan_score = self.neg_score - self.pos_score
 
         self.batch_scores =tf.nn.softmax(self.gan_score) 
         self.prob = tf.gather(self.batch_scores,self.neg_index)

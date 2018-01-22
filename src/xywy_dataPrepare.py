@@ -11,12 +11,12 @@ reload(sys)
 sys.setdefaultencoding('utf-8')
 r = "[A-Za-z0-9\[+.!/_,$%^*(+\"\']+|[+——！＼，,。﹌“·”《’‘》;…:：；℅～、~@#￥%……&*（）】【？?\n\t]+"
 noUsedWords = {}
-path = '../data/'
+path = '../xywy_data/'
 max_sequence_len = 200
 word_len = []
 
 def extract_data_with_best_answer1(outfile):
-    data = xlrd.open_workbook(path+'ask120_origin.xlsx').sheet_by_index(0)
+    data = xlrd.open_workbook(path+'xywy_origin.xlsx').sheet_by_index(0)
     nrows, ncols = data.nrows, data.ncols
     dic_data = {}
     for index in range(1,nrows):
@@ -27,7 +27,7 @@ def extract_data_with_best_answer1(outfile):
             dic_data[data.cell(index,0).value] = {data.cell(index,20).value:1}
     print len(dic_data)
     count = 0
-    gender_dic, age_dic, region_dic, doc_title_dic, users_dic, docs_dic = {}, {}, {}, {}, {}, {}
+    gender_dic, age_dic,  doc_title_dic, users_dic, docs_dic = {}, {}, {}, {}, {}
     with open(path+outfile, 'wb') as csvFile:
         outWriter = csv.writer(csvFile)
         for index in range(1,nrows):
@@ -55,62 +55,54 @@ def extract_data_with_best_answer1(outfile):
                     feature.append(str(rows[3]).strip())
                     if str(rows[3]).strip() not in age_dic:
                         age_dic[str(rows[3]).strip()] = len(age_dic) 
-                if len(rows[5].strip()) == 0:
-                    feature.append('unknown')
-                    if 'unknown' not in region_dic:
-                        region_dic['unknown'] = len(region_dic)
-                else:
-                    region = str(rows[5].strip()).replace('市','').replace('省','').replace('自治区','').replace('壮族','').replace('burgenland','unknown').replace('null','unknown').replace('undefined','unknown')
-                    feature.append(region)
-                    if region not in region_dic:
-                        region_dic[region] = len(region_dic)
-                feature.append(str(rows[6]).strip()+' '+str(rows[7]).strip()+' '+str(rows[8]).strip())
-                feature.append(str(rows[15]).strip())
+                feature.append(str(rows[5]).strip()+' '+str(rows[6]).strip())
+                feature.append(str(rows[13]).strip())
                 if feature[-1] not in docs_dic:
                     docs_dic[feature[-1]] = len(docs_dic)
-                if len(rows[16].strip()) == 0:
+                if len(rows[14].strip()) == 0:
                     feature.append('unknown')
                     if 'unknown' not in doc_title_dic:
                         doc_title_dic['unknown'] = len(doc_title_dic)
                 else:
-                    doc_title = str(rows[16].strip()).replace(' 电话：13938106983','')
+                    doc_title = str(rows[14].strip())
                     feature.append(doc_title)
                     if doc_title not in doc_title_dic:
                         doc_title_dic[doc_title] = len(doc_title_dic)
+                feature.append(str(rows[15]).strip())
+                feature.append(str(rows[16]).strip())
+                feature.append(str(rows[19]).strip())
                 feature.append(str(rows[17]).strip())
-                feature += rows[18:20]
-                feature.append(str(rows[21]).strip()+' '+str(rows[22]).strip())
                 feature.append(rows[20])
                 outWriter.writerow(feature)
-    print count,  len(gender_dic),len(age_dic),len(region_dic),len(doc_title_dic), len(users_dic), len(docs_dic)
-    cPickle.dump((gender_dic,age_dic,region_dic,doc_title_dic,users_dic,docs_dic),open(path+'features.dic','w'))
+    print count,  len(gender_dic),len(age_dic),len(doc_title_dic), len(users_dic), len(docs_dic)
+    cPickle.dump((gender_dic,age_dic,doc_title_dic,users_dic,docs_dic),open(path+'features.dic','w'))
 
 def init_word_seg():
-    with codecs.open("../data/user.dic","r") as input_userDic:
+    with codecs.open("../ask120_data/user.dic","r") as input_userDic:
         userDic = input_userDic.readlines()
         for word in userDic:
             word = word.strip()
             jieba.add_word(str(word))
-    with codecs.open("../data/stopword-full.dic","r") as input_stopwords:
+    with codecs.open("../ask120_data/stopword-full.dic","r") as input_stopwords:
         for index, word in enumerate(input_stopwords.readlines()):
             word = word.strip()
             noUsedWords[str(word)] = index
     
 def feature_process2(inFile,outFile):
     init_word_seg()
-    gender_dic,age_dic,region_dic,doc_title_dic,users_dic,docs_dic = cPickle.load(open(path+'features.dic','r'))
-    dics_tuple = (users_dic,gender_dic,age_dic,region_dic,0,docs_dic,doc_title_dic)
+    gender_dic,age_dic,doc_title_dic,users_dic,docs_dic = cPickle.load(open(path+'features.dic','r'))
+    dics_tuple = (users_dic,gender_dic,age_dic,0,docs_dic,doc_title_dic)
     output = codecs.open(path+outFile,'w')
     code = 0
     vocab = {'unknown':code}
     with open(path+inFile,'r') as csvFile:
         reader = csv.reader(csvFile)
         for row in reader:
-            if len(row) < 12:
+            if len(row) < 11:
                 continue
             res_line = ''
             for index, cell in enumerate(row):
-                if index == 4 or index == 7 or index == 10:
+                if index == 3 or index == 6 or index == 9:
                     segs = jieba.cut(re.sub(r.decode('utf-8'), ' '.decode('utf-8'), cell.decode('utf-8')))
                     for seg in segs:
                         seg = seg.strip()
@@ -120,7 +112,7 @@ def feature_process2(inFile,outFile):
                                 code += 1
                                 vocab[seg] = code
                     res_line = res_line+ '\t'
-                elif index == 8 or index == 9 or index == 11:
+                elif index == 7 or index == 8 or index == 10:
                     res_line += str(cell)+'\t'
                 else:
                     res_line += str(dics_tuple[index][str(cell).strip()])+'\t'
@@ -149,25 +141,25 @@ def split_train_test3(inFile):
         lines = raw_feature.readlines() 
         for index,line in enumerate(lines):
             token = line.strip().split('\t')
-            if len(token) < 12:
+            if len(token) < 11:
                 continue
-            key, value = token[:4], token[5:7]
-            key.append(format_str(token[4], vocab))
-            value.extend(token[8:10])
-            value.append(format_str(token[7]+'unknown '+token[10],vocab))
-            value.append(token[11])
+            key, value = token[:3], token[4:6]
+            key.append(format_str(token[3], vocab))
+            value.extend(token[7:9])
+            value.append(format_str(token[6]+'unknown '+token[9],vocab))
+            value.append(token[10])
             skey = '\t'.join(key) 
             svalue = '\t'.join(value)
             responses.append(svalue)
             if skey not in asker_map:
                 asker_map[skey] = [svalue]
-                if token[11] == '1.0':
+                if token[10] == '1.0':
                     asker_right[skey] = 1
                 else:
                     asker_right[skey] = 0
             else:
                 asker_map[skey].append(svalue)
-                if token[11] == '1.0':
+                if token[10] == '1.0':
                     asker_right[skey] += 1
     asker_size = len(asker_map)
     train_out = codecs.open(path+'train_feature','w')
@@ -209,8 +201,8 @@ def generate_uniform_pair(dataset):
     asker_map = cPickle.load(open(path+'asker_map','r'))
     responses = cPickle.load(open(path+'responses','r'))
     print len(asker_map)
-    gender_dic,age_dic,region_dic,doc_title_dic,users_dic,docs_dic = cPickle.load(open(path+'features.dic','r'))
-    dics_tuple = [len(gender_dic),len(age_dic),len(region_dic),len(doc_title_dic)]
+    gender_dic,age_dic,doc_title_dic,users_dic,docs_dic = cPickle.load(open(path+'features.dic','r'))
+    dics_tuple = [len(gender_dic),len(age_dic),len(doc_title_dic)]
     with codecs.open(path+dataset,'r') as train:
         for row in train.readlines():
             key, value = row.strip().split(':VS:')
@@ -218,7 +210,7 @@ def generate_uniform_pair(dataset):
             response = value.split('\t')
             if response[-1] != '1.0':
                 continue
-            q = query[4].split('_')
+            q = query[3].split('_')
             pos = response[4].split('_')
             #values = asker_map[key]
             #values.remove(value)
@@ -227,12 +219,11 @@ def generate_uniform_pair(dataset):
             neg_resp = responses[neg_index].split('\t')
             neg = neg_resp[4].split('_')
 
-            q_profile = [0.0]*sum(dics_tuple[:3])
-            pos_profile = [0.0]*dics_tuple[3]
-            neg_profile = [0.0]*dics_tuple[3]
+            q_profile = [0.0]*sum(dics_tuple[:2])
+            pos_profile = [0.0]*dics_tuple[2]
+            neg_profile = [0.0]*dics_tuple[2]
             q_profile[int(query[1])] = 1.0
             q_profile[int(query[2])+dics_tuple[0]] = 1.0
-            q_profile[int(query[3])+ sum(dics_tuple[:2])] = 1.0
             
             pos_profile[int(response[1])] = 1.0
             pos_profile.append(response[2])
@@ -250,24 +241,23 @@ def generate_uniform_pair(dataset):
 
 def generate_test_samples():
     eb_samples, pro_samples, asker_label = [], [], []
-    gender_dic,age_dic,region_dic,doc_title_dic,users_dic,docs_dic = cPickle.load(open(path+'features.dic','r'))
-    dics_tuple = [len(gender_dic),len(age_dic),len(region_dic),len(doc_title_dic)]
+    gender_dic,age_dic,doc_title_dic,users_dic,docs_dic = cPickle.load(open(path+'features.dic','r'))
+    dics_tuple = [len(gender_dic),len(age_dic),len(doc_title_dic)]
     with codecs.open(path+'test_feature','r') as test:
         for row in test.readlines():
             key, value = row.strip().split(':VS:')
             query = key.split('\t')
             response = value.split('\t')
-            q = map(int, query[4].split('_'))
+            q = map(int, query[3].split('_'))
             pos = map(int, response[4].split('_'))
             eb_samples.append([q,pos,pos])
             label = response[-1]
             asker_label.append((key,label))
             
-            q_profile = [0.0]*sum(dics_tuple[:3])
-            pos_profile = [0.0]*dics_tuple[3]
+            q_profile = [0.0]*sum(dics_tuple[:2])
+            pos_profile = [0.0]*dics_tuple[2]
             q_profile[int(query[1])] = 1.0
             q_profile[int(query[2])+ dics_tuple[0]] = 1.0
-            q_profile[int(query[3])+ sum(dics_tuple[:2])] = 1.0
 
             pos_profile[int(response[1])] = 1.0
             pos_profile.append(float(response[2]))
@@ -279,11 +269,54 @@ def generate_test_samples():
     cPickle.dump(res,open(path+'test_samples','w'))
     return res
 
+def generate_test_random_samples(batch_size=80):
+    eb_samples, pro_samples, asker_label = [], [], []
+    responses = cPickle.load(open(path+'responses','r'))
+    gender_dic,age_dic,doc_title_dic,users_dic,docs_dic = cPickle.load(open(path+'features.dic','r'))
+    dics_tuple = [len(gender_dic),len(age_dic),len(doc_title_dic)]
+    with codecs.open(path+'test_feature','r') as test:
+        for row in test.readlines():
+            key, value = row.strip().split(':VS:')
+            query = key.split('\t')
+            response = value.split('\t')
+            if response[-1] != '1.0':
+                continue
+            q = map(int, query[3].split('_'))
+            q_profile = [0.0]*sum(dics_tuple[:2])
+            q_profile[int(query[1])] = 1.0
+            q_profile[int(query[2])+ dics_tuple[0]] = 1.0
+            
+            candidate_resp = [response]
+            candidate_resp.extend(list(np.random.choice(responses,size=[batch_size-1],replace= False)))
+            
+            for i in range(batch_size):
+                if i != 0:
+                    response = candidate_resp[i].split('\t')
+                    asker_label.append((key,'0.0'))
+                else:
+                    response = candidate_resp[i]
+                    asker_label.append((key,'1.0'))
+                pos = map(int, response[4].split('_'))
+
+                pos_profile = [0.0]*dics_tuple[2]
+
+                pos_profile[int(response[1])] = 1.0
+                pos_profile.append(float(response[2]))
+                pos_profile.append(float(response[3]))
+
+                profile = [q_profile, pos_profile,pos_profile]
+                pro_samples.append(profile)
+                eb_samples.append([q,pos,pos])
+    res = np.array(eb_samples), np.array(pro_samples), asker_label
+    cPickle.dump(res,open(path+'test_samples','w'))
+    return res
+
 
 if __name__ == "__main__":
-    #extract_data_with_best_answer1('ask120.csv')
-    #feature_process2('ask120.csv','raw_feature')
+    #extract_data_with_best_answer1('xywy.csv')
+    #feature_process2('xywy.csv','raw_feature')
     #split_train_test3('raw_feature')
     generate_uniform_pair('train_feature')
     #generate_test_samples()
+    generate_test_random_samples(10)
     print 'beginning...'

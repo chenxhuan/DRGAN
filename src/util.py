@@ -5,7 +5,8 @@ import tensorflow as tf
 sys.path.append('..')
 reload(sys)
 sys.setdefaultencoding('utf-8')
-path = '../data/'
+#path = '../ask120_data/'
+path = '../xywy_data/'
 
 def precision_at_k(r,k):
     assert k >= 1
@@ -35,12 +36,14 @@ def metrics(l):
     ndcg3 = ndcg_at_k(l,3)
     return np.array([p1,p3,ndcg1,ndcg3])
 
+
+eb_samples,pro_samples, asker_label = cPickle.load(open(path+'test_samples','r'))
 def evaluation(sess,model,log,batch_size, save_flag=False):
     asker_MAP = []
     result = np.array([0.0]*4)
     current_step = tf.train.global_step(sess, model.global_step)
     #eb_samples,pro_samples, asker_label = generate_test_samples()
-    eb_samples,pro_samples, asker_label = cPickle.load(open(path+'test_samples','r'))
+    #eb_samples,pro_samples, asker_label = cPickle.load(open(path+'test_samples','r'))
     num_batches = int(math.ceil(len(eb_samples)/batch_size))
     batch_scores, asker_scores = [],{}
     for i in range(num_batches):
@@ -65,7 +68,7 @@ def evaluation(sess,model,log,batch_size, save_flag=False):
     for i, (k, s_l) in enumerate(asker_scores.items()):
         mscore = sorted(s_l,key=lambda x:x[0], reverse=True)
         if  i== 100:
-            print mscore
+            print len(mscore), mscore
         flag = []
         for s,l in mscore:
             if l == '1.0':
@@ -77,9 +80,10 @@ def evaluation(sess,model,log,batch_size, save_flag=False):
     total_MAP = MAP(asker_MAP)
     total_metrics = result / len(asker_scores)
     line="%d samples test: %d epoch, p1,p3,NDCG1,NDCG3,MAP: %f,%f,%f,%f,%f"%(len(asker_scores),current_step,total_metrics[0],total_metrics[1],total_metrics[2],total_metrics[3],total_MAP)
+    wline="%f\t%f\t%f\t%f\t%f"%(total_metrics[0],total_metrics[1],total_metrics[2],total_metrics[3],total_MAP)
     print (line)
     if save_flag:
         print( model.save_model(sess,total_metrics[0]))
-    log.write(line+"\n")
+    log.write(wline+"\n")
     log.flush()
     #tf.summary.FileWriter(path+'TB/',sess.graph)

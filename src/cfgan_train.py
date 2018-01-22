@@ -1,26 +1,29 @@
 import tensorflow as tf
 from cf.dis_model import DIS
 from cf.gen_model import GEN
-import cPickle, sys, datetime,time
+import cPickle, sys, datetime,time,os
 import numpy as np
 import multiprocessing
 sys.path.append('..')
 reload(sys)
 sys.setdefaultencoding('utf-8')
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
 timestamp = lambda : time.strftime('%Y%m%d%H%M%S', time.localtime(int(time.time())))
 cores = multiprocessing.cpu_count()
 
 #########################################################################################
 # Hyper-parameters
 #########################################################################################
-EMB_DIM = 5
+EMB_DIM = 100
 USER_NUM = 13105
 ITEM_NUM = 11648
-BATCH_SIZE = 16
-INIT_DELTA = 0.05
+BATCH_SIZE = 80
+INIT_DELTA = 0.01
 
 all_items = set(range(ITEM_NUM))
-workdir = '../data/'
+workdir = '../ask120_data/'
+#workdir = '../xywy_data/'
 DIS_TRAIN_FILE = workdir + 'train_cf'
 DIS_TEST_FILE = workdir + 'test_cf'
 
@@ -76,6 +79,10 @@ def ndcg_at_k(r, k):
         return 0.
     return dcg_at_k(r, k) / dcg_max
 
+def precision_at_k(r,k):
+    assert k >= 1
+    return np.mean(r[:k])
+
 
 def simple_test_one_user(x):
     rating = x[0]
@@ -84,6 +91,8 @@ def simple_test_one_user(x):
     #test_items = list(all_items - set(user_pos_train.get(u,[])))
     #test_items = list(all_items)
     test_items = user_test.get(u,[])
+    candidate_items = list(np.random.choice(list(all_items - set(test_items)) , size=10-len(test_items) ,replace=False))
+    test_items += candidate_items 
     item_score = []
     for i in test_items:
         item_score.append((i, rating[i]))
@@ -99,20 +108,19 @@ def simple_test_one_user(x):
         else:
             r.append(0)
 
-    p_1 = np.mean(r[:1])
-    p_3 = np.mean(r[:3])
-    p_5 = np.mean(r[:5])
+    p_1 = precision_at_k(r,1)
+    p_3 = precision_at_k(r,3)
     ndcg_1 = ndcg_at_k(r, 1)
     ndcg_3 = ndcg_at_k(r, 3)
-    ndcg_5 = ndcg_at_k(r, 5)
+    mp = np.mean([precision_at_k(r, k + 1) for k in range(len(r)) if r[k]])
 
-    return np.array([p_1, p_3, p_5, ndcg_1, ndcg_3, ndcg_5])
+    return np.array([p_1, p_3, ndcg_1, ndcg_3, mp])
 
 
 def simple_test(sess, model):
-    result = np.array([0.] * 6)
+    result = np.array([0.] * 5)
     pool = multiprocessing.Pool(cores)
-    batch_size = 128
+    batch_size = 80
     test_users = user_pos_test.keys()
     test_user_num = len(test_users)
     index = 0
@@ -166,10 +174,10 @@ def get_batch_data(index, size):
 def main():
     print "load model..."
     param = None
-    generator = GEN(ITEM_NUM, USER_NUM, EMB_DIM, lamda=0.1 / BATCH_SIZE, param=None, initdelta=INIT_DELTA,
-                    learning_rate=0.01)
-    discriminator = DIS(ITEM_NUM, USER_NUM, EMB_DIM, lamda=0.1 / BATCH_SIZE, param=None, initdelta=INIT_DELTA,
-                        learning_rate=0.01)
+    generator = GEN(ITEM_NUM, USER_NUM, EMB_DIM, lamda=0.001, param=None, initdelta=INIT_DELTA,
+                    learning_rate=0.05)
+    discriminator = DIS(ITEM_NUM, USER_NUM, EMB_DIM, lamda=0.001, param=None, initdelta=INIT_DELTA,
+                        learning_rate=0.05)
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -180,33 +188,33 @@ def main():
 
     # minimax training
     best = 1.
-    for epoch in range(50):
-        if epoch >= 0:
-            for d_epoch in range(10):
-                current_loss,logits = 0.0,0.0
-                if d_epoch  == 0:
-                    generate_for_d(sess, generator)
-                    train_size = len(train_data)
-                index = 1
-                while True:
-                    if index > train_size:
-                        break
-                    if index + BATCH_SIZE <= train_size - 1:
-                        input_user, input_item, input_label = get_batch_data(index, BATCH_SIZE)
-                    else:
-                        input_user, input_item, input_label = get_batch_data(index,train_size - index )
-                    index += BATCH_SIZE
+    for epoch in range(41):
+            if epoch > 0:
+                for d_epoch in range(10):
+                    current_loss,logits = 0.0,0.0
+                    if d_epoch  == 0:
+                        generate_for_d(sess, generator)
+                        train_size = len(train_data)
+                    index = 1
+                    while True:
+                        if index > train_size:
+                            break
+                        if index + BATCH_SIZE <= train_size - 1:
+                            input_user, input_item, input_label = get_batch_data(index, BATCH_SIZE)
+                        else:
+                            input_user, input_item, input_label = get_batch_data(index,train_size - index )
+                        index += BATCH_SIZE
 
-                    _, current_loss = sess.run([discriminator.d_updates,discriminator.loss],
+                        _, current_loss = sess.run([discriminator.d_updates,discriminator.loss],
                                  feed_dict={discriminator.u: input_user, discriminator.i: input_item,
                                             discriminator.label: input_label})
-                line=("%s: DIS step %d, loss %f  "%(datetime.datetime.now().isoformat(), epoch, current_loss))
-                print line
-            result = simple_test(sess, discriminator)
-            print "epoch ", epoch, "dis: ", result
-            buf = '\t'.join(result)
-            gen_log.write(buf+'\t'+line +'\n')
-            gen_log.flush()
+                    line=("%s: DIS step %d, loss %f  "%(datetime.datetime.now().isoformat(), epoch, current_loss))
+                    print line
+                result = simple_test(sess, discriminator)
+                print "epoch ", epoch, "dis: ", result
+                buf = '\t'.join(result)
+                gen_log.write(buf+'\t'+line +'\n')
+                gen_log.flush()
             # Train G
             for g_epoch in range(5):  # 50
                 g_current_loss = 0.0
@@ -220,8 +228,9 @@ def main():
 
                     pn = (1 - sample_lambda) * prob
                     pn[pos] += sample_lambda * 1.0 / len(pos)
+                    pn /= pn.sum()
                     # Now, pn is the Pn in importance sampling, prob is generator distribution p_\theta
-                    sample = np.random.choice(np.arange(ITEM_NUM), BATCH_SIZE, p=prob, replace=False)
+                    sample = np.random.choice(np.arange(ITEM_NUM), BATCH_SIZE, p=pn)
                     ###########################################################################
                     # Get reward and adapt it with importance sampling
                     ###########################################################################

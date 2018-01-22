@@ -16,7 +16,7 @@ path = '../model/'
 
 class core():
     
-    def __init__(self, sequence_len, batch_size,vocab_size, embedding_size,filter_sizes, num_filters, query_size, response_size, dropout=1.0,l2_reg=0.0,params=None,learning_rate=1e-2,embeddings=None,loss="pair",trainable=True):
+    def __init__(self, sequence_len, batch_size,vocab_size, embedding_size,filter_sizes, num_filters, query_size, response_size, dropout=1.0,l2_reg=0.0,params=None,learning_rate=1e-2,embeddings=None,loss="pair",trainable=True, score_type = 'nn_output'):
         self.sequence_len=sequence_len
         self.learning_rate=learning_rate
         self.params=params
@@ -77,28 +77,29 @@ class core():
 
         with tf.name_scope('profile_params'):
             if params == None or len(params) < 3:
-                self.W1 = tf.Variable(tf.truncated_normal([self.neuro_size, self.neuro_size], stddev=0.1), name="weight_1")
-                self.Wc1 = tf.Variable(tf.truncated_normal([2,2], stddev=0.1), name="weight_combined1")
-                self.W2 = tf.Variable(tf.truncated_normal([self.neuro_size,1],stddev=0.1), name="weight_2")
-                self.Wc2 = tf.Variable(tf.truncated_normal([2,1],stddev=0.1), name="weight_combined2")
-                self.b = tf.Variable(tf.constant(0.0, shape=[self.neuro_size]), name="b")
-                self.bc = tf.Variable(tf.constant(0.0, shape=[2]), name="bc")
-                #self.lamda = tf.Variable(tf.constant(0.1, shape=[1]), name="lamda_weight")
+                if score_type == 'nn_output':
+                    self.W1 = tf.Variable(tf.truncated_normal([self.neuro_size, self.neuro_size], stddev=0.1), name="weight_1")
+                    self.Wc1 = tf.Variable(tf.truncated_normal([2,2], stddev=0.1), name="weight_combined1")
+                    self.W2 = tf.Variable(tf.truncated_normal([self.neuro_size,1],stddev=0.1), name="weight_2")
+                    self.Wc2 = tf.Variable(tf.truncated_normal([2,1],stddev=0.1), name="weight_combined2")
+                    self.b = tf.Variable(tf.constant(0.0, shape=[self.neuro_size]), name="b")
+                    self.bc = tf.Variable(tf.constant(0.0, shape=[2]), name="bc")
+                elif score_type == 'cosine_output':
+                    self.W1 = tf.Variable(tf.truncated_normal([self.num_filters_total+self.query_size, self.embedding_size], stddev=0.1), name="weight_1")
+                    self.Wc1 = tf.Variable(tf.truncated_normal([self.num_filters_total+self.response_size,self.embedding_size], stddev=0.1), name="weight_combined1")
+                    self.W2 = tf.Variable(tf.truncated_normal([self.neuro_size,1],stddev=0.1), name="weight_2")
+                    self.Wc2 = tf.Variable(tf.truncated_normal([2,1],stddev=0.1), name="weight_combined2")
+                    self.b = tf.Variable(tf.constant(0.0, shape=[self.embedding_size]), name="b")
+                    self.bc = tf.Variable(tf.constant(0.0, shape=[self.embedding_size]), name="bc")
 
-                #self.W1 = tf.Variable(name='weight_1', [self.visible_size, self.hidden_size],initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.1))
-                #self.Wc1 = tf.get_variable('weight_combined1',[2,2],initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.1))
-                #self.W2 = tf.get_variable('weight_2', [self.hidden_size, 1],initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.1))
-                #self.Wc2 = tf.get_variable('weight_combined2',[2,1],initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.1))
-                #self.b = tf.get_variable('b', [self.hidden_size], initializer=tf.constant_initializer(0.0))
-                #self.bc = tf.get_variable('bc', [2], initializer=tf.constant_initializer(0.0))
             else:
+                print np.shape(params[2][0])
                 self.W1 = tf.Variable(params[2][0])
                 self.W2 = tf.Variable(params[2][1])
                 self.b = tf.Variable(params[2][2])
                 self.Wc1 = tf.Variable(params[2][3])
                 self.Wc2 = tf.Variable(params[2][4])
                 self.bc = tf.Variable(params[2][5])
-                #self.lamda = tf.Variable(params[2][6])
             self.updated_params.extend([self.W1,self.W2,self.b,self.Wc1,self.Wc2,self.bc])
 
 
@@ -112,26 +113,32 @@ class core():
             q  =self.getRepresentation(self.input_x_1)
             pos=self.getRepresentation(self.input_x_2)
             neg=self.getRepresentation(self.input_x_3)
+            if score_type == 'nn_output':
+                self.score12 = self.cosine(q,pos)
+                self.score13 = self.cosine(q,neg)
 
-            self.score12 = self.cosine(q,pos)
-            self.score13 = self.cosine(q,neg)
-
-            self.pos_prof_score = tf.reshape(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(tf.concat([self.prof_1,self.prof_2],1), self.W1, self.b)), self.W2),[-1])
-            self.neg_prof_score = tf.reshape(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(tf.concat([self.prof_1,self.prof_3],1), self.W1, self.b)), self.W2),[-1])
-            self.combined_score = self.score12 + self.pos_prof_score
+                self.pos_prof_score = tf.reshape(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(tf.concat([self.prof_1,self.prof_2],1), self.W1, self.b)), self.W2),[-1])
+                self.neg_prof_score = tf.reshape(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(tf.concat([self.prof_1,self.prof_3],1), self.W1, self.b)), self.W2),[-1])
           
-            pos_tmp = tf.reshape([self.pos_prof_score,self.score12], [-1,2])
-            neg_tmp = tf.reshape([self.neg_prof_score, self.score13], [-1,2])
-            self.pos_score = tf.reshape(tf.nn.tanh(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(pos_tmp,self.Wc1,self.bc)),self.Wc2)),[-1])
-            self.neg_score = tf.reshape(tf.nn.tanh(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(neg_tmp,self.Wc1,self.bc)),self.Wc2)),[-1])
-            #self.pos_score = tf.reshape(tf.nn.relu(tf.nn.xw_plus_b(pos_tmp,self.Wc2,self.bc)),[-1])
-            #self.neg_score = tf.reshape(tf.nn.relu(tf.nn.xw_plus_b(neg_tmp,self.Wc2,self.bc)),[-1])
-            #self.pos_score = self.lamda*self.score12 + (1-self.lamda)*self.pos_prof_score
-            #self.neg_score = self.lamda*self.score13 + (1-self.lamda)*self.neg_prof_score
+                pos_tmp = tf.reshape([self.pos_prof_score,self.score12], [-1,2])
+                neg_tmp = tf.reshape([self.neg_prof_score, self.score13], [-1,2])
+                self.pos_score = tf.reshape(tf.nn.softplus(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(pos_tmp,self.Wc1,self.bc)),self.Wc2)),[-1])
+                self.neg_score = tf.reshape(tf.nn.softplus(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(neg_tmp,self.Wc1,self.bc)),self.Wc2)),[-1])
+            elif score_type == 'cosine_output':
+                print score_type
+                query = tf.concat([self.prof_1,q],1)
+                pos_resp = tf.concat([self.prof_2,pos],1)
+                neg_resp = tf.concat([self.prof_3,neg],1)
+                query_tmp = tf.nn.tanh(tf.nn.xw_plus_b(query,self.W1,self.b))
+                pos_tmp = tf.nn.tanh(tf.nn.xw_plus_b(pos_resp,self.Wc1,self.bc))
+                neg_tmp = tf.nn.tanh(tf.nn.xw_plus_b(neg_resp,self.Wc1,self.bc))
+                self.pos_score = self.cosine(query_tmp,pos_tmp)
+                self.neg_score = self.cosine(query_tmp,neg_tmp)
+
 
     def getRepresentation(self,sentence):
         embedded_chars_1 = tf.nn.embedding_lookup(self.Embedding_W, sentence)
-        embedded_chars_expanded_1 = tf.expand_dims(embedded_chars_1, -1)
+        embedded_chars_expanded_1 = tf.expand_dims(embedded_chars_1, -1)  # expand the channels of input = 1
         output=[]
         for i, filter_size in enumerate(self.filter_sizes): 
             conv = tf.nn.conv2d(

@@ -2,14 +2,16 @@ import tensorflow as tf
 import time,math, os, sys, datetime, random, cPickle,pdb
 import numpy as np
 import Discriminator
-from dataPrepare import generate_uniform_pair, generate_test_samples
+from xywy_dataPrepare import generate_uniform_pair, generate_test_samples
+#from dataPrepare import generate_uniform_pair, generate_test_samples
 from util import evaluation
 sys.path.append('..')
 reload(sys)
 sys.setdefaultencoding('utf-8')
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-path = '../data/'
+#path = '../ask120_data/'
+path = '../xywy_data/'
 timestamp = lambda : time.strftime('%Y%m%d%H%M%S', time.localtime(int(time.time())))
 precision_log = 'log/'+timestamp()+'test_baseline_dns.log'
 pre_trained_path = '../model/'
@@ -23,11 +25,12 @@ tf.flags.DEFINE_float("l2_reg", 0.001, "L2 regularizaion lambda (default: 0.0)")
 tf.flags.DEFINE_float("learning_rate", 0.1, "learning_rate (default: 0.1)")
 # Training parameters
 tf.flags.DEFINE_integer("batch_size", 80, "Batch Size (default: 64)")
-tf.flags.DEFINE_integer("num_epochs", 1, "Number of training epochs (default: 200)")
+tf.flags.DEFINE_integer("num_epochs", 40, "Number of training epochs (default: 200)")
 tf.flags.DEFINE_integer("evaluate_every", 500, "Evaluate model on dev set after this many steps (default: 100)")
 tf.flags.DEFINE_integer("checkpoint_every", 500, "Save model after this many steps (default: 100)")
 tf.flags.DEFINE_integer("pools_size", 100, "The sampled set of a positive ample, which is bigger than 500")
 tf.flags.DEFINE_integer("sampled_size", 100, " the real selectd set from the The sampled pools")
+tf.flags.DEFINE_string("score_type", "nn_output", " the type of score function")
 # Misc Parameters
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
@@ -95,12 +98,13 @@ def process():
                     FLAGS.learning_rate,
                     param,
                     None,
-                    'svm',
-                    True) 
+                    'log',
+                    True,
+                    FLAGS.score_type) 
                 sess.run(tf.global_variables_initializer())
                 for i in range(FLAGS.num_epochs):
                     step, current_loss, accuracy = 0, 0.0, 0.0
-		    eb_samples, pro_samples = generate_dns_pair(sess,dis,eb_samples,pro_samples)
+		    #eb_samples, pro_samples = generate_dns_pair(sess,dis,eb_samples,pro_samples)
                     for ib in range(num_batches):
                         end_index = min((ib+1)*batch_size, len(eb_samples))
                         eb_batch = eb_samples[end_index-batch_size:end_index]
@@ -112,8 +116,8 @@ def process():
                             dis.prof_1:list(pro_batch[:,0]),
                             dis.prof_2:list(pro_batch[:,1]),
                             dis.prof_3:list(pro_batch[:,2])}
-                        _,step, current_loss, accuracy,positive = sess.run([dis.updates,dis.global_step,dis.loss,dis.accuracy,dis.pos_score],feed_dict)
-                    line = ("%s: basic Dis step %d, loss %f with acc %f,total step: %d "%(timestamp(), step, current_loss,accuracy,FLAGS.num_epochs*num_batches))
+                        _,step, current_loss, accuracy,pos_score,neg_score = sess.run([dis.updates,dis.global_step,dis.loss,dis.accuracy,dis.positive,dis.negative],feed_dict)
+                    line = ("%s: basic Dis step %d, loss %f with acc %f,pos score %f, neg score %f, total step: %d "%(timestamp(), step, current_loss,accuracy,pos_score,neg_score,FLAGS.num_epochs*num_batches))
                     print line
                     log.write(line+"\n")
                     if i != FLAGS.num_epochs-1:
