@@ -313,10 +313,10 @@ def generate_test_random_samples(batch_size=80):
 
 
 if __name__ == "__main__":
-    #extract_data_with_best_answer1('xywy.csv')
+    extract_data_with_best_answer1('xywy.csv')
     #feature_process2('xywy.csv','raw_feature')
     #split_train_test3('raw_feature')
-    generate_uniform_pair('train_feature')
+    #generate_uniform_pair('train_feature')
     #generate_test_samples()
-    generate_test_random_samples(10)
+    #generate_test_random_samples(10)
     print 'beginning...'
