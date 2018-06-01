@@ -11,15 +11,17 @@ class Discriminator(core):
             if loss == 'svm':
                 self.losses = tf.maximum(0.0, 0.05 - (self.pos_score - self.neg_score))
                 self.loss = tf.reduce_sum(self.losses) + self.l2_reg*self.l2_loss
-                self.reward = 2*(tf.sigmoid(0.05 - (self.pos_score - self.neg_score))-0.5)
+                self.reward = 3*(tf.sigmoid(0.05 - (self.pos_score - self.neg_score))-0.5)
+                self.correct = tf.equal(0.0, self.losses)
             elif loss == 'log':
                 self.losses = tf.log(tf.sigmoid(self.pos_score - self.neg_score))
                 self.loss = -tf.reduce_mean(self.losses) + self.l2_reg*self.l2_loss
-                self.reward = tf.reshape(tf.log(tf.sigmoid(self.neg_score - self.pos_score)),[-1])
+                self.reward = tf.reshape(tf.log(tf.sigmoid(self.neg_score - self.pos_score)+0.5),[-1])
+                self.correct = tf.greater(0.0, self.losses)
 
             self.positive = tf.reduce_mean(self.pos_score)
             self.negative = tf.reduce_mean(self.neg_score)
-            self.correct = tf.equal(0.0, self.losses)
+            #self.correct = tf.equal(0.0, self.losses)
             self.accuracy = tf.reduce_mean(tf.cast(self.correct,'float'),name='accuracy')
 
         self.global_step = tf.Variable(0,name='global_step', trainable=False)

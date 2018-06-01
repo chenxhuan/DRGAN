@@ -6,7 +6,7 @@ sys.path.append('..')
 reload(sys)
 sys.setdefaultencoding('utf-8')
 #path = '../ask120_data/'
-path = '../xywy_data/'
+#path = '../xywy_data/'
 
 def precision_at_k(r,k):
     assert k >= 1
@@ -37,13 +37,12 @@ def metrics(l):
     return np.array([p1,p3,ndcg1,ndcg3])
 
 
-eb_samples,pro_samples, asker_label = cPickle.load(open(path+'test_samples','r'))
-def evaluation(sess,model,log,batch_size, save_flag=False):
+#eb_samples,pro_samples, asker_label = cPickle.load(open(path+'test_samples0','r'))
+def evaluation(sess,model,log,batch_size, testset, save_flag=False):
     asker_MAP = []
     result = np.array([0.0]*4)
     current_step = tf.train.global_step(sess, model.global_step)
-    #eb_samples,pro_samples, asker_label = generate_test_samples()
-    #eb_samples,pro_samples, asker_label = cPickle.load(open(path+'test_samples','r'))
+    eb_samples,pro_samples, asker_label = cPickle.load(open(testset,'r'))
     num_batches = int(math.ceil(len(eb_samples)/batch_size))
     batch_scores, asker_scores = [],{}
     for i in range(num_batches):

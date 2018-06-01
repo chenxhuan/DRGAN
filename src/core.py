@@ -78,12 +78,13 @@ class core():
         with tf.name_scope('profile_params'):
             if params == None or len(params) < 3:
                 if score_type == 'nn_output':
-                    self.W1 = tf.Variable(tf.truncated_normal([self.neuro_size, self.neuro_size], stddev=0.1), name="weight_1")
-                    self.Wc1 = tf.Variable(tf.truncated_normal([2,2], stddev=0.1), name="weight_combined1")
-                    self.W2 = tf.Variable(tf.truncated_normal([self.neuro_size,1],stddev=0.1), name="weight_2")
-                    self.Wc2 = tf.Variable(tf.truncated_normal([2,1],stddev=0.1), name="weight_combined2")
+                    self.W1 = tf.Variable(tf.truncated_normal([self.neuro_size, self.neuro_size],mean=0.0,stddev=0.1), name="weight_1")
+                    self.Wc1 = tf.Variable(tf.truncated_normal([2,2], mean=0.0, stddev=0.1), name="weight_combined1")
+                    self.W2 = tf.Variable(tf.truncated_normal([self.neuro_size,1],mean=0.0, stddev=0.1), name="weight_2")
+                    self.Wc2 = tf.Variable(tf.truncated_normal([2,1],mean=0.0, stddev=0.1), name="weight_combined2")
                     self.b = tf.Variable(tf.constant(0.0, shape=[self.neuro_size]), name="b")
                     self.bc = tf.Variable(tf.constant(0.0, shape=[2]), name="bc")
+                    self.bc2 = tf.Variable(tf.constant(0.0, shape=[1]), name="bc2")
                 elif score_type == 'cosine_output':
                     self.W1 = tf.Variable(tf.truncated_normal([self.num_filters_total+self.query_size, self.embedding_size], stddev=0.1), name="weight_1")
                     self.Wc1 = tf.Variable(tf.truncated_normal([self.num_filters_total+self.response_size,self.embedding_size], stddev=0.1), name="weight_combined1")
@@ -117,13 +118,15 @@ class core():
                 self.score12 = self.cosine(q,pos)
                 self.score13 = self.cosine(q,neg)
 
-                self.pos_prof_score = tf.reshape(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(tf.concat([self.prof_1,self.prof_2],1), self.W1, self.b)), self.W2),[-1])
-                self.neg_prof_score = tf.reshape(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(tf.concat([self.prof_1,self.prof_3],1), self.W1, self.b)), self.W2),[-1])
+                self.pos_prof_score = tf.reshape(tf.nn.tanh(tf.matmul(tf.nn.softplus(tf.nn.xw_plus_b(tf.concat([self.prof_1,self.prof_2],1), self.W1, self.b)), self.W2)),[-1])
+                self.neg_prof_score = tf.reshape(tf.nn.tanh(tf.matmul(tf.nn.softplus(tf.nn.xw_plus_b(tf.concat([self.prof_1,self.prof_3],1), self.W1, self.b)), self.W2)),[-1])
           
                 pos_tmp = tf.reshape([self.pos_prof_score,self.score12], [-1,2])
                 neg_tmp = tf.reshape([self.neg_prof_score, self.score13], [-1,2])
-                self.pos_score = tf.reshape(tf.nn.softplus(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(pos_tmp,self.Wc1,self.bc)),self.Wc2)),[-1])
-                self.neg_score = tf.reshape(tf.nn.softplus(tf.matmul(tf.nn.tanh(tf.nn.xw_plus_b(neg_tmp,self.Wc1,self.bc)),self.Wc2)),[-1])
+                self.pos_score = tf.reshape(tf.nn.tanh(tf.nn.xw_plus_b(pos_tmp,self.Wc2,self.bc2)),[-1])
+                self.neg_score = tf.reshape(tf.nn.tanh(tf.nn.xw_plus_b(neg_tmp,self.Wc2,self.bc2)),[-1])
+                #self.pos_score = tf.reshape((tf.matmul(tf.nn.softplus(tf.nn.xw_plus_b(pos_tmp,self.Wc1,self.bc)),self.Wc2)),[-1])
+                #self.neg_score = tf.reshape((tf.matmul(tf.nn.softplus(tf.nn.xw_plus_b(neg_tmp,self.Wc1,self.bc)),self.Wc2)),[-1])
             elif score_type == 'cosine_output':
                 print score_type
                 query = tf.concat([self.prof_1,q],1)

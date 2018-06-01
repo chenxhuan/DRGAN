@@ -10,19 +10,19 @@ reload(sys)
 sys.setdefaultencoding('utf-8')
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-#path = '../ask120_data/'
-path = '../xywy_data/'
+path = '../ask120_data/'
+#path = '../xywy_data/'
 timestamp = lambda : time.strftime('%Y%m%d%H%M%S', time.localtime(int(time.time())))
-precision_log = 'log/'+timestamp()+'test_baseline_dns.log'
+precision_log = 'log/'+timestamp()+'test_baseline_rns.log'
 pre_trained_path = '../model/'
 
 tf.flags.DEFINE_integer("max_sequence_len", 200, "Max sequence length fo sentence (default: 200)")
 tf.flags.DEFINE_integer("embedding_dim", 100, "Dimensionality of character embedding (default: 128)")
 tf.flags.DEFINE_string("filter_sizes", "1,2,3,5", "Comma-separated filter sizes (default: '3,4,5')")
 tf.flags.DEFINE_integer("num_filters", 500, "Number of filters per filter size (default: 128)")
-tf.flags.DEFINE_float("dropout", 1.0, "Dropout keep probability (default: 0.5)")
-tf.flags.DEFINE_float("l2_reg", 0.001, "L2 regularizaion lambda (default: 0.0)")
-tf.flags.DEFINE_float("learning_rate", 0.1, "learning_rate (default: 0.1)")
+tf.flags.DEFINE_float("dropout", 0.9, "Dropout keep probability (default: 0.5)")
+tf.flags.DEFINE_float("l2_reg", 0.01, "L2 regularizaion lambda (default: 0.0)")
+tf.flags.DEFINE_float("learning_rate", 0.05, "learning_rate (default: 0.1)")
 # Training parameters
 tf.flags.DEFINE_integer("batch_size", 80, "Batch Size (default: 64)")
 tf.flags.DEFINE_integer("num_epochs", 40, "Number of training epochs (default: 200)")
@@ -30,7 +30,7 @@ tf.flags.DEFINE_integer("evaluate_every", 500, "Evaluate model on dev set after 
 tf.flags.DEFINE_integer("checkpoint_every", 500, "Save model after this many steps (default: 100)")
 tf.flags.DEFINE_integer("pools_size", 100, "The sampled set of a positive ample, which is bigger than 500")
 tf.flags.DEFINE_integer("sampled_size", 100, " the real selectd set from the The sampled pools")
-tf.flags.DEFINE_string("score_type", "nn_output", " the type of score function")
+tf.flags.DEFINE_string("score_type", "cosine_output", " the type of score function")
 # Misc Parameters
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
@@ -62,7 +62,7 @@ def generate_dns_pair(sess,model, eb_samples, pro_samples):
 
  
 
-def process():
+def process(fold_index = 0):
     with tf.Graph().as_default():
         #with tf.device('/gpu:1'):
             session_conf = tf.ConfigProto(
@@ -70,7 +70,7 @@ def process():
                 log_device_placement=FLAGS.log_device_placement
             )
             sess = tf.Session(config=session_conf)
-            with sess.as_default(), open(precision_log,'w') as log:
+            with sess.as_default(), open(precision_log + str(fold_index),'w') as log:
                 if len(sys.argv) > 1:
                     param = cPickle.load(open(pre_trained_path+sys.argv[1],'r'))
                     print param[2][3],param[2][4],param[2][5]
@@ -78,7 +78,7 @@ def process():
                     param = None
                 #samples = generate_uniform_pair('test_feature')
                 #eb_samples, pro_samples = generate_uniform_pair('train_feature')
-                eb_samples, pro_samples = cPickle.load(open(path+'train_samples','r'))
+                eb_samples, pro_samples = cPickle.load(open(path+'train_samples'+ str(fold_index),'r'))
                 query_prof_dim = len(pro_samples[0][0])
                 response_prof_dim = len(pro_samples[0][-1])
                 batch_size = FLAGS.batch_size
@@ -98,13 +98,13 @@ def process():
                     FLAGS.learning_rate,
                     param,
                     None,
-                    'log',
+                    'svm',
                     True,
                     FLAGS.score_type) 
                 sess.run(tf.global_variables_initializer())
                 for i in range(FLAGS.num_epochs):
                     step, current_loss, accuracy = 0, 0.0, 0.0
-		    #eb_samples, pro_samples = generate_dns_pair(sess,dis,eb_samples,pro_samples)
+		    eb_samples, pro_samples = generate_dns_pair(sess,dis,eb_samples,pro_samples)
                     for ib in range(num_batches):
                         end_index = min((ib+1)*batch_size, len(eb_samples))
                         eb_batch = eb_samples[end_index-batch_size:end_index]
@@ -121,11 +121,12 @@ def process():
                     print line
                     log.write(line+"\n")
                     if i != FLAGS.num_epochs-1:
-                        evaluation(sess,dis,log,batch_size)
-                evaluation(sess,dis,log,batch_size,True)
+                        evaluation(sess,dis,log,batch_size,path+'test_samples' + str(fold_index))
+                evaluation(sess,dis,log,batch_size,path+'test_samples' + str(fold_index),True)
 if __name__ == '__main__':
     start = time.time()
-    process()
+    for fold_index in xrange(5):
+        process(fold_index)
     end = time.time()
     print 'training time',(end - start)/60
 
