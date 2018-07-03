@@ -17,15 +17,17 @@ cores = multiprocessing.cpu_count()
 #########################################################################################
 EMB_DIM = 100
 USER_NUM = 13105
+#USER_NUM = 12255
 ITEM_NUM = 11648
+#ITEM_NUM = 4644
 BATCH_SIZE = 80
 INIT_DELTA = 0.01
 
 all_items = set(range(ITEM_NUM))
-workdir = '../ask120_data/'
-#workdir = '../xywy_data/'
-DIS_TRAIN_FILE = workdir + 'train_cf'
-DIS_TEST_FILE = workdir + 'test_cf'
+#workdir = '../ask120_data/'
+workdir = '../xywy_data/'
+DIS_TRAIN_FILE = workdir + 'train_cf4'
+DIS_TEST_FILE = workdir + 'test_cf4'
 
 #########################################################################################
 # Load data
@@ -188,7 +190,7 @@ def main():
 
     # minimax training
     best = 1.
-    for epoch in range(41):
+    for epoch in range(20):
             if epoch > 0:
                 for d_epoch in range(10):
                     current_loss,logits = 0.0,0.0
@@ -253,7 +255,7 @@ def main():
             if p_5 > best:
                 print 'best: ', result
                 best = p_5
-                generator.save_model(sess, "../model/cf_gan_generator.pkl")
+                #generator.save_model(sess, "../model/cf_gan_generator.pkl")
 
     gen_log.close()
 

@@ -11,7 +11,7 @@ class Discriminator(core):
             if loss == 'svm':
                 self.losses = tf.maximum(0.0, 0.05 - (self.pos_score - self.neg_score))
                 self.loss = tf.reduce_sum(self.losses) + self.l2_reg*self.l2_loss
-                self.reward = 3*(tf.sigmoid(0.05 - (self.pos_score - self.neg_score))-0.5)
+                self.reward = 2*(tf.sigmoid(0.05 - (self.pos_score - self.neg_score)))
                 self.correct = tf.equal(0.0, self.losses)
             elif loss == 'log':
                 self.losses = tf.log(tf.sigmoid(self.pos_score - self.neg_score))

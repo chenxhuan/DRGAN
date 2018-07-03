@@ -10,10 +10,10 @@ reload(sys)
 sys.setdefaultencoding('utf-8')
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-path = '../ask120_data/'
-#path = '../xywy_data/'
+#path = '../ask120_data/'
+path = '../xywy_data/'
 timestamp = lambda : time.strftime('%Y%m%d%H%M%S', time.localtime(int(time.time())))
-precision_log = 'log/'+timestamp()+'test_baseline_rns.log'
+precision_log = 'log/'+timestamp()+'test_rns_xywy.log'
 pre_trained_path = '../model/'
 
 tf.flags.DEFINE_integer("max_sequence_len", 200, "Max sequence length fo sentence (default: 200)")
@@ -25,12 +25,12 @@ tf.flags.DEFINE_float("l2_reg", 0.01, "L2 regularizaion lambda (default: 0.0)")
 tf.flags.DEFINE_float("learning_rate", 0.05, "learning_rate (default: 0.1)")
 # Training parameters
 tf.flags.DEFINE_integer("batch_size", 80, "Batch Size (default: 64)")
-tf.flags.DEFINE_integer("num_epochs", 40, "Number of training epochs (default: 200)")
+tf.flags.DEFINE_integer("num_epochs", 20, "Number of training epochs (default: 200)")
 tf.flags.DEFINE_integer("evaluate_every", 500, "Evaluate model on dev set after this many steps (default: 100)")
 tf.flags.DEFINE_integer("checkpoint_every", 500, "Save model after this many steps (default: 100)")
 tf.flags.DEFINE_integer("pools_size", 100, "The sampled set of a positive ample, which is bigger than 500")
 tf.flags.DEFINE_integer("sampled_size", 100, " the real selectd set from the The sampled pools")
-tf.flags.DEFINE_string("score_type", "cosine_output", " the type of score function")
+tf.flags.DEFINE_string("score_type", "nn_output", " the type of score function")
 # Misc Parameters
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
@@ -98,13 +98,13 @@ def process(fold_index = 0):
                     FLAGS.learning_rate,
                     param,
                     None,
-                    'svm',
+                    'log',
                     True,
                     FLAGS.score_type) 
                 sess.run(tf.global_variables_initializer())
                 for i in range(FLAGS.num_epochs):
                     step, current_loss, accuracy = 0, 0.0, 0.0
-		    eb_samples, pro_samples = generate_dns_pair(sess,dis,eb_samples,pro_samples)
+		    #eb_samples, pro_samples = generate_dns_pair(sess,dis,eb_samples,pro_samples)
                     for ib in range(num_batches):
                         end_index = min((ib+1)*batch_size, len(eb_samples))
                         eb_batch = eb_samples[end_index-batch_size:end_index]

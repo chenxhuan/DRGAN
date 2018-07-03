@@ -101,7 +101,8 @@ class core():
                 self.Wc1 = tf.Variable(params[2][3])
                 self.Wc2 = tf.Variable(params[2][4])
                 self.bc = tf.Variable(params[2][5])
-            self.updated_params.extend([self.W1,self.W2,self.b,self.Wc1,self.Wc2,self.bc])
+            if score_type != 'qa_output':
+                self.updated_params.extend([self.W1,self.W2,self.b,self.Wc1,self.Wc2,self.bc])
 
 
 
@@ -137,6 +138,11 @@ class core():
                 neg_tmp = tf.nn.tanh(tf.nn.xw_plus_b(neg_resp,self.Wc1,self.bc))
                 self.pos_score = self.cosine(query_tmp,pos_tmp)
                 self.neg_score = self.cosine(query_tmp,neg_tmp)
+            elif score_type == 'qa_output':
+                print score_type
+                self.pos_score = self.cosine(q,pos)
+                self.neg_score = self.cosine(q,neg)
+
 
 
     def getRepresentation(self,sentence):

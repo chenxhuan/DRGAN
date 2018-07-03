@@ -12,15 +12,15 @@ path = '../ask120_data/'
 #path = '../xywy_data/'
 pre_trained_path = '../model/'
 timestamp = lambda : time.strftime('%Y%m%d%H%M%S', time.localtime(int(time.time())))
-precision_log = 'log/'+timestamp()+'test_gan_cos_ask120.log'
+precision_log = 'log/'+timestamp()+'test_gan.log'
 
 
 tf.flags.DEFINE_integer("max_sequence_len", 200, "Max sequence length fo sentence (default: 200)")
-tf.flags.DEFINE_integer("embedding_dim", 50, "Dimensionality of character embedding (default: 128)")
+tf.flags.DEFINE_integer("embedding_dim", 100, "Dimensionality of character embedding (default: 128)")
 tf.flags.DEFINE_string("filter_sizes", "1,2,3,5", "Comma-separated filter sizes (default: '3,4,5')")
 tf.flags.DEFINE_integer("num_filters", 500, "Number of filters per filter size (default: 128)")
-tf.flags.DEFINE_float("dropout", 0.9, "Dropout keep probability (default: 0.5)")
-tf.flags.DEFINE_float("l2_reg", 0.001, "L2 regularizaion lambda (default: 0.0)")
+tf.flags.DEFINE_float("dropout", 0.8, "Dropout keep probability (default: 0.5)")
+tf.flags.DEFINE_float("l2_reg", 0.01, "L2 regularizaion lambda (default: 0.0)")
 tf.flags.DEFINE_float("learning_rate", 0.05, "learning_rate (default: 0.1)")
 # Training parameters
 tf.flags.DEFINE_integer("batch_size", 80, "Batch Size (default: 64)")
@@ -28,7 +28,7 @@ tf.flags.DEFINE_integer("num_epochs", 20, "Number of training epochs (default: 2
 tf.flags.DEFINE_integer("pools_size", 100, "The sampled set of a positive ample, which is bigger than 500")
 tf.flags.DEFINE_integer("sampled_size", 100, " the real selectd set from the The sampled pools")
 tf.flags.DEFINE_string("loss", "svm", "svm or log")
-tf.flags.DEFINE_string("score_type", "cosine_output", " the type of score function")
+tf.flags.DEFINE_string("score_type", "qa_output", " the type of score function")
 tf.flags.DEFINE_integer("g_epochs_num", 1, " the num_epochs of generator per epoch")
 tf.flags.DEFINE_integer("d_epochs_num", 2, " the num_epochs of discriminator per epoch")
 tf.flags.DEFINE_integer("gan_k", 40, "the number of samples of gan")
@@ -128,7 +128,7 @@ def process(fold_index = 0):
                     response_prof_dim,
                     FLAGS.dropout,
                     FLAGS.l2_reg,
-                    FLAGS.learning_rate,
+                    FLAGS.learning_rate/50,
                     paramG,
                     None,
                     FLAGS.loss,
@@ -211,11 +211,11 @@ def process(fold_index = 0):
                     if i != FLAGS.num_epochs-1:
                         evaluation(sess,gen,log,batch_size, path+'test_samples' + str(fold_index))
                         evaluation(sess,dis,log,batch_size, path+'test_samples' + str(fold_index))
-                evaluation(sess,gen,log,batch_size,path+'test_samples' + str(fold_index))
-                evaluation(sess,dis,log,batch_size,path+'test_samples' + str(fold_index))
+                evaluation(sess,gen,log,batch_size,path+'test_samples' + str(fold_index),True)
+                evaluation(sess,dis,log,batch_size,path+'test_samples' + str(fold_index),True)
 if __name__ == '__main__':
     start = time.time()
-    for fold_index in xrange(5):
+    for fold_index in xrange(1):
         process(fold_index)
     end = time.time()
     print 'training time',(end - start)/60

@@ -134,7 +134,7 @@ def format_str(text, vocab):
             formatSeg.append(str(vocab['unknown']))
     return '_'.join(formatSeg)
                          
-def split_train_test3(inFile):
+def split_train_test3(inFile, cross_fold = 5):
     asker_map, asker_right, responses = {}, {},[]
     vocab = cPickle.load(open(path+'vocab','r'))
     with codecs.open(path+inFile,'r') as raw_feature:
@@ -162,30 +162,33 @@ def split_train_test3(inFile):
                 if token[10] == '1.0':
                     asker_right[skey] += 1
     asker_size = len(asker_map)
-    train_out = codecs.open(path+'train_feature','w')
-    test_out = codecs.open(path+'test_feature','w')
-    train_cf = codecs.open(path+'train_cf','w')
-    test_cf = codecs.open(path+'test_cf','w')
     maxsize, minsize = 0, asker_size
-    for index,kv in enumerate(asker_map.items()):
-        key, values = kv
-        maxsize = max(maxsize, len(values))
-        minsize = min(minsize, len(values))
-        if index < asker_size*0.8:   # train set
-            for value in values:
-                train_out.write(key+':VS:'+value+'\n')
-                cf_value = value.split('\t')
-                train_cf.write(key.split('\t')[0]+'\t'+cf_value[0]+'\t'+cf_value[-1]+'\n')
-        else:                       # test set
-            for value in values:   
-                test_out.write(key+':VS:'+value+'\n')
-                cf_value = value.split('\t')
-                test_cf.write(key.split('\t')[0]+'\t'+cf_value[0]+'\t'+cf_value[-1]+'\n') 
+    askers = asker_map.items()
+    fold_size = asker_size / cross_fold
+    for fold_index in xrange(cross_fold):
+        train_out = codecs.open(path+'train_feature'+str(fold_index),'w')
+        test_out = codecs.open(path+'test_feature'+str(fold_index),'w')
+        train_cf = codecs.open(path+'train_cf'+str(fold_index),'w')
+        test_cf = codecs.open(path+'test_cf'+str(fold_index),'w')
+        for index,kv in enumerate(askers):
+            key, values = kv
+            maxsize = max(maxsize, len(values))
+            minsize = min(minsize, len(values))
+            if index < fold_index * fold_size or index > (fold_index + 1)*fold_size:
+                for value in values:
+                    train_out.write(key+':VS:'+value+'\n')
+                    cf_value = value.split('\t')
+                    train_cf.write(key.split('\t')[0]+'\t'+cf_value[0]+'\t'+cf_value[-1]+'\n')
+            else:                       # test set
+                for value in values:   
+                    test_out.write(key+':VS:'+value+'\n')
+                    cf_value = value.split('\t')
+                    test_cf.write(key.split('\t')[0]+'\t'+cf_value[0]+'\t'+cf_value[-1]+'\n') 
+        train_out.close()
+        test_out.close()
+        train_cf.close()
+        test_cf.close()
     print asker_size, maxsize, minsize, max(word_len),min(word_len),np.average(word_len)
-    train_out.close()
-    test_out.close()
-    train_cf.close()
-    test_cf.close()
     tmp = asker_right.values()
     count = 0
     for i in tmp:
@@ -196,14 +199,14 @@ def split_train_test3(inFile):
     cPickle.dump(asker_map,open(path+'asker_map','w'))
     cPickle.dump(responses,open(path+'responses','w'))
 
-def generate_uniform_pair(dataset):
+def generate_uniform_pair(dataset, fold_index = 0):
     embedding_samples, profile_samples = [],[]
     asker_map = cPickle.load(open(path+'asker_map','r'))
     responses = cPickle.load(open(path+'responses','r'))
     print len(asker_map)
     gender_dic,age_dic,doc_title_dic,users_dic,docs_dic = cPickle.load(open(path+'features.dic','r'))
     dics_tuple = [len(gender_dic),len(age_dic),len(doc_title_dic)]
-    with codecs.open(path+dataset,'r') as train:
+    with codecs.open(path+dataset+str(fold_index),'r') as train:
         for row in train.readlines():
             key, value = row.strip().split(':VS:')
             query = key.split('\t')
@@ -236,14 +239,14 @@ def generate_uniform_pair(dataset):
             embedding_samples.append([map(int,item) for item in [q,pos,neg]])
             profile_samples.append([map(float, item) for item in [q_profile, pos_profile, neg_profile]])
     res = np.array(embedding_samples),np.array(profile_samples) 
-    cPickle.dump(res,open(path+'train_samples','w'))
+    cPickle.dump(res,open(path+'train_samples'+str(fold_index),'w'))
     return res  #  must np.array or can't use [:,0] for list
 
-def generate_test_samples():
+def generate_test_samples(testset, fold_index):
     eb_samples, pro_samples, asker_label = [], [], []
     gender_dic,age_dic,doc_title_dic,users_dic,docs_dic = cPickle.load(open(path+'features.dic','r'))
     dics_tuple = [len(gender_dic),len(age_dic),len(doc_title_dic)]
-    with codecs.open(path+'test_feature','r') as test:
+    with codecs.open(path+testset+str(fold_index),'r') as test:
         for row in test.readlines():
             key, value = row.strip().split(':VS:')
             query = key.split('\t')
@@ -266,15 +269,15 @@ def generate_test_samples():
             profile = [q_profile, pos_profile,pos_profile]
             pro_samples.append(profile)
     res = np.array(eb_samples), np.array(pro_samples), asker_label
-    cPickle.dump(res,open(path+'test_samples','w'))
+    cPickle.dump(res,open(path+'test_samples'+str(fold_index),'w'))
     return res
 
-def generate_test_random_samples(batch_size=80):
+def generate_test_random_samples(testset, fold_index, batch_size=80):
     eb_samples, pro_samples, asker_label = [], [], []
     responses = cPickle.load(open(path+'responses','r'))
     gender_dic,age_dic,doc_title_dic,users_dic,docs_dic = cPickle.load(open(path+'features.dic','r'))
     dics_tuple = [len(gender_dic),len(age_dic),len(doc_title_dic)]
-    with codecs.open(path+'test_feature','r') as test:
+    with codecs.open(path+testset+str(fold_index),'r') as test:
         for row in test.readlines():
             key, value = row.strip().split(':VS:')
             query = key.split('\t')
@@ -308,15 +311,16 @@ def generate_test_random_samples(batch_size=80):
                 pro_samples.append(profile)
                 eb_samples.append([q,pos,pos])
     res = np.array(eb_samples), np.array(pro_samples), asker_label
-    cPickle.dump(res,open(path+'test_samples','w'))
+    cPickle.dump(res,open(path+'test_samples'+str(fold_index),'w'))
     return res
 
 
 if __name__ == "__main__":
-    extract_data_with_best_answer1('xywy.csv')
+    #extract_data_with_best_answer1('xywy.csv')
     #feature_process2('xywy.csv','raw_feature')
     #split_train_test3('raw_feature')
-    #generate_uniform_pair('train_feature')
-    #generate_test_samples()
-    #generate_test_random_samples(10)
+    for fold_index in xrange(5):
+        generate_uniform_pair('train_feature',fold_index)
+        #generate_test_samples('test_feature',fold_index)
+        generate_test_random_samples('test_feature',fold_index,10)
     print 'beginning...'
